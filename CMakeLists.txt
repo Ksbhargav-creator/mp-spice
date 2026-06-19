@@ -72,7 +72,7 @@ else()
 	message(STATUS "MTL5 not found via find_package, fetching headers from GitHub")
 	FetchContent_Declare(mtl5
 		GIT_REPOSITORY https://github.com/stillwater-sc/mtl5.git
-		GIT_TAG        main
+		GIT_TAG        v5.3.0
 		GIT_SHALLOW    TRUE
 	)
 	# Header-only: populate but do NOT add_subdirectory (avoids building targets)
