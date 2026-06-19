@@ -1,0 +1,6 @@
+add_executable(klu_mixed_precision klu_mixed_precision.cpp)
+target_link_libraries(klu_mixed_precision PRIVATE sw::mp_spice)
+
+if(MPSPICE_MIXED_PRECISION_KLU)
+	target_compile_definitions(klu_mixed_precision PRIVATE MPSPICE_MIXED_PRECISION_KLU)
+endif()

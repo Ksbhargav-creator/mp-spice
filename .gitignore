@@ -1,0 +1,13 @@
+build*/
+.cache/
+CMakeUserPresets.json
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Downloaded SuiteSparse matrices (fetched on demand, never committed)
+data/*.mtx
+data/*.mtx.gz
+data/*.tar.gz
+data/*/
