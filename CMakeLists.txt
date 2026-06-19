@@ -98,11 +98,10 @@ target_compile_options(${PROJECT_NAME} INTERFACE
 option(MPSPICE_BUILD_APPLICATIONS "Build demonstration applications" ON)
 option(MPSPICE_BUILD_TESTS        "Build unit tests"                 ON)
 
-# Enable the low-precision (cfloat/posit) KLU comparison. Off by default until
-# the MTL5 ADL-abs integration lands (see docs/roadmap.md and issue tracker):
-# MTL5's sparse_lu currently calls unqualified std::abs(), which does not find
-# Universal's abs() via ADL.
-option(MPSPICE_MIXED_PRECISION_KLU "Enable cfloat<16,5>/posit<16,2> KLU paths" OFF)
+# Enable the low-precision (cfloat/posit) KLU comparison. Enabled by default:
+# the upstream MTL5 ADL-abs fix (stillwater-sc/mtl5#121) makes native KLU
+# compile for Universal number types.
+option(MPSPICE_MIXED_PRECISION_KLU "Enable cfloat<16,5>/posit<16,2> KLU paths" ON)
 
 if(MPSPICE_BUILD_APPLICATIONS)
 	add_subdirectory(applications)

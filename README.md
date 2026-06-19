@@ -34,9 +34,23 @@ Target matrices:
 - [`Freescale/circuit5M`](https://sparse.tamu.edu/Freescale/circuit5M) — very
   large stress/scaling target.
 
-> **Status:** the `double` and `float` paths work today. The `cfloat<16,5>` /
-> `posit<16,2>` paths are gated behind `-DMPSPICE_MIXED_PRECISION_KLU=ON` and a
-> small upstream MTL5 fix (ADL-friendly `abs`); see [docs/roadmap.md](docs/roadmap.md).
+> **Status:** all four precisions work (enabled by default;
+> `-DMPSPICE_MIXED_PRECISION_KLU=OFF` to build `double`/`float` only). Example
+> output on `Rajat/rajat11` (135×135 circuit matrix, exact solution all-ones):
+>
+> ```
+>   type              ||Ax-b||inf     ||x-1||inf
+>   ------------------------------------------
+>   double              3.553e-15      2.803e-13
+>   float               9.505e-07      7.176e-05
+>   cfloat<16,5>     solve failed: zero pivot (block singular in half precision)
+>   posit<16,2>         3.229e-04      1.819e-01
+> ```
+>
+> Note how `posit<16,2>` completes the solve where `cfloat<16,5>` fails — a
+> concrete mixed-precision result. Robustness on stiff circuit matrices is
+> expected to improve with scaling and iterative refinement (see
+> [docs/roadmap.md](docs/roadmap.md), Milestone 2).
 
 ## Build
 

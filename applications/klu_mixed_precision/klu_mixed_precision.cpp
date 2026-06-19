@@ -109,11 +109,30 @@ std::vector<double> solve_in(const Sparse& A_ref, const std::vector<double>& b_r
     return out;
 }
 
-void report(const std::string& label, const Sparse& A,
-            const std::vector<double>& x, const std::vector<double>& b) {
-    std::cout << "  " << std::left << std::setw(16) << label
-              << "  ||Ax-b||_inf = " << std::setw(14) << std::scientific
-              << std::setprecision(4) << residual_inf(A, x, b) << '\n';
+// Forward error ||x - exact||_inf (exact solution is known: all ones).
+double forward_error_inf(const std::vector<double>& x,
+                         const std::vector<double>& exact) {
+    double m = 0.0;
+    for (std::size_t i = 0; i < x.size(); ++i)
+        m = std::max(m, std::abs(x[i] - exact[i]));
+    return m;
+}
+
+// Solve in type T and print a result row. A failed factorization (common for
+// low precision on stiff circuit matrices) is reported, not fatal.
+template <typename T>
+void run_row(const std::string& label, const Sparse& A,
+             const std::vector<double>& b, const std::vector<double>& exact) {
+    try {
+        auto x = solve_in<T>(A, b);
+        std::cout << "  " << std::left << std::setw(14) << label << std::right
+                  << "   " << std::setw(12) << std::scientific << std::setprecision(3)
+                  << residual_inf(A, x, b)
+                  << "   " << std::setw(12) << forward_error_inf(x, exact) << '\n';
+    } catch (const std::exception& e) {
+        std::cout << "  " << std::left << std::setw(14) << label
+                  << "   solve failed: " << e.what() << '\n';
+    }
 }
 
 } // namespace
@@ -146,17 +165,21 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::cout << "Native KLU solve (exact solution is all-ones):\n";
-    report("double", A, solve_in<double>(A, b), b);
-    report("float", A, solve_in<float>(A, b), b);
+    std::cout << "Native KLU solve, exact solution is all-ones:\n\n";
+    std::cout << "  " << std::left << std::setw(14) << "type" << std::right
+              << "   " << std::setw(12) << "||Ax-b||inf"
+              << "   " << std::setw(12) << "||x-1||inf" << '\n';
+    std::cout << "  " << std::string(42, '-') << '\n';
+
+    run_row<double>("double", A, b, ones);
+    run_row<float>("float", A, b, ones);
 
 #ifdef MPSPICE_MIXED_PRECISION_KLU
-    report("cfloat<16,5>", A, solve_in<sw::universal::cfloat<16, 5>>(A, b), b);
-    report("posit<16,2>", A, solve_in<sw::universal::posit<16, 2>>(A, b), b);
+    run_row<sw::universal::cfloat<16, 5>>("cfloat<16,5>", A, b, ones);
+    run_row<sw::universal::posit<16, 2>>("posit<16,2>", A, b, ones);
 #else
     std::cout << "\n  [cfloat<16,5> and posit<16,2> paths disabled: build with "
-                 "-DMPSPICE_MIXED_PRECISION_KLU=ON\n   once the MTL5 ADL-abs "
-                 "integration lands (see docs/roadmap.md).]\n";
+                 "-DMPSPICE_MIXED_PRECISION_KLU=ON]\n";
 #endif
 
     return 0;

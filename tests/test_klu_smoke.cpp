@@ -11,8 +11,10 @@
 #include <mtl/vec/dense_vector.hpp>
 #include <mtl/sparse/factorization/native_klu.hpp>
 
-// Confirm Universal headers are reachable through the composed include paths.
+// Universal number types: native KLU must solve in these through the MTL5 +
+// Universal composition (relies on the ADL-abs fix, stillwater-sc/mtl5#121).
 #include <universal/number/posit/posit.hpp>
+#include <universal/number/cfloat/cfloat.hpp>
 
 namespace {
 
@@ -54,9 +56,13 @@ int main() {
     if (!solve_ok<double>(1e-10)) { std::cerr << "double KLU solve failed\n"; ++failures; }
     if (!solve_ok<float>(1e-4))   { std::cerr << "float KLU solve failed\n";  ++failures; }
 
-    // Universal type is at least constructible/usable through the composition.
-    sw::universal::posit<16, 2> p{1.5};
-    if (static_cast<double>(p) <= 0.0) { std::cerr << "posit construction failed\n"; ++failures; }
+    // Native KLU through the MTL5 + Universal composition, in low precision.
+    if (!solve_ok<sw::universal::cfloat<16, 5>>(1e-1)) {
+        std::cerr << "cfloat<16,5> KLU solve failed\n"; ++failures;
+    }
+    if (!solve_ok<sw::universal::posit<16, 2>>(1e-1)) {
+        std::cerr << "posit<16,2> KLU solve failed\n"; ++failures;
+    }
 
     if (failures == 0) std::cout << "mp-spice smoke test passed\n";
     return failures == 0 ? 0 : 1;

@@ -14,18 +14,22 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       CI, smoke test, demo application skeleton.
 - [x] `double` / `float` KLU solve on a synthetic block-triangular matrix and on
       loaded Matrix Market files.
-- [ ] **Unblock low-precision KLU.** MTL5's `sparse_lu.hpp` calls unqualified
-      `std::abs(x)`, which does not find Universal's `abs()` via ADL, so
-      `native_klu` does not compile for `cfloat`/`posit`. Fix upstream in MTL5
-      with an ADL-friendly form (`using std::abs; ... abs(x)`) — this is
-      dependency-free and directly serves MTL5's stated mixed-precision mission.
-      Audit `sparse_cholesky`, `sparse_ldlt`, `sparse_qr` for the same pattern.
-- [ ] Enable `cfloat<16,5>` / `posit<16,2>` paths in the demo
-      (`-DMPSPICE_MIXED_PRECISION_KLU=ON`) and produce the four-precision
-      accuracy table.
-- [ ] Matrix loading at scale: confirm `mtl::io::mm_read` handles the rajat30
-      and circuit5M headers; add gzip / large-file handling as needed.
+- [x] **Unblock low-precision KLU.** Fixed upstream: MTL5's sparse factorizations
+      now use ADL-friendly `abs`/`sqrt` (stillwater-sc/mtl5#121), so `native_klu`
+      compiles for `cfloat`/`posit`. (`sparse_lu`, `sparse_cholesky`, `sparse_qr`
+      all addressed; `sparse_ldlt`/`triangular_solve` were already clean.)
+- [x] Enable `cfloat<16,5>` / `posit<16,2>` paths (now ON by default) and produce
+      the four-precision accuracy table (residual + forward error). Per-type
+      failures (e.g. a block going singular in half precision) are reported, not
+      fatal. Validated on `Rajat/rajat11`: posit<16,2> completes where
+      cfloat<16,5> fails.
+- [x] `mm_read` loads real SuiteSparse `.mtx` (verified on rajat11, `coordinate
+      real general`).
+- [ ] Matrix loading at scale: rajat30 / circuit5M (gzip / large-file handling).
 - [ ] Cross-check against the external SuiteSparse KLU binding where available.
+- [ ] Investigate native-KLU robustness on stiff circuit matrices (zero pivots
+      in low precision) — relates to Milestone 2 (scaling, iterative refinement)
+      and MTL5 follow-ups #117/#118/#119.
 
 ## Milestone 2 — Mixed-precision solver strategies
 
