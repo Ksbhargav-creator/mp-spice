@@ -25,11 +25,25 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       cfloat<16,5> fails.
 - [x] `mm_read` loads real SuiteSparse `.mtx` (verified on rajat11, `coordinate
       real general`).
+- [x] **Mixed-precision study** (`applications/klu_mixed_precision_study`, study
+      logic in `include/sw/mp_spice/klu_study.hpp`): per type, compares a direct
+      solve against **mixed-precision iterative refinement** — factor once in the
+      low precision (native KLU, MTL5 v5.5.0), then refine with a
+      **double-precision residual**, reusing the low-precision factorization.
+      Reports residual + forward error for both, with `--csv`.
+
+      **Headline finding (add32, 4960×4960):** a direct posit<16,2> solve has
+      ~1e-2 forward error, but mixed IR recovers it to **~5e-12 in 30 steps** —
+      while cfloat<16,5> (same 16 bits) **does not converge** (correction rounds
+      to ~0 when the double residual is cast back to half). float recovers to
+      ~5e-15 in 2 steps. Posit's tapered precision near 1.0 makes the low-
+      precision correction usable where IEEE half does not — the core
+      mixed-precision-for-circuits result, and motivation for keeping the
+      residual/correction in higher precision (quire, #3) — see Milestone 2.
 - [ ] Matrix loading at scale: rajat30 / circuit5M (gzip / large-file handling).
 - [ ] Cross-check against the external SuiteSparse KLU binding where available.
-- [ ] Investigate native-KLU robustness on stiff circuit matrices (zero pivots
-      in low precision) — relates to Milestone 2 (scaling, iterative refinement)
-      and MTL5 follow-ups #117/#118/#119.
+- [ ] Native-KLU robustness on stiff circuit matrices is largely addressed by the
+      MTL5 KLU performance epic (scaling + AMD ordering, v5.5.0).
 
 ## Milestone 2 — Mixed-precision solver strategies
 
