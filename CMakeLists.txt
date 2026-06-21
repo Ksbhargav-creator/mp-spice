@@ -71,8 +71,11 @@ if(MTL5_FOUND)
 else()
 	message(STATUS "MTL5 not found via find_package, fetching headers from GitHub")
 	FetchContent_Declare(mtl5
+		# Tracking main until the next MTL5 release tag carries the sparse_lu
+		# accumulator seam (stillwater-sc/mtl5#122) the quire adapter needs.
+		# TODO: pin back to a v5.6.x tag once cut.
 		GIT_REPOSITORY https://github.com/stillwater-sc/mtl5.git
-		GIT_TAG        v5.5.0
+		GIT_TAG        main
 		GIT_SHALLOW    TRUE
 	)
 	# Header-only: populate but do NOT add_subdirectory (avoids building targets)

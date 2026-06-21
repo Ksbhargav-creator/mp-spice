@@ -47,9 +47,24 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
 
 ## Milestone 2 — Mixed-precision solver strategies
 
-- [ ] Low-precision factorization + `double` iterative refinement (the
-      compelling mixed-precision story for stiff circuit matrices).
-- [ ] Row/column scaling (equilibration) before factorization.
+- [x] Low-precision factorization + `double` iterative refinement (see the
+      mixed-precision study under Milestone 1 — the compelling result).
+- [x] Row/column scaling (equilibration): native KLU row-equilibrates by default
+      (MTL5 v5.5.0).
+- [x] **Quire super-accumulator study** (`applications/klu_quire_study`,
+      adapter in `include/sw/mp_spice/quire_accumulator.hpp`): fills MTL5's
+      sparse_lu accumulator seam (stillwater-sc/mtl5#122) with a Universal posit
+      **quire**, so each column's inner products in the LU round only once (a
+      fused dot product). Compares plain vs quire posit factorization across
+      widths. Result (dense well-conditioned 40×40): the quire lowers the
+      residual ~1.5× for posit<16,2>/<32,2> and the forward error for
+      posit<16,2>; posit<8,2> sees no gain (the resolve precision floors it).
+      Confirms exact accumulation reduces the factorization's backward error;
+      the gain is bounded by the per-column resolve precision (single rounding
+      per column, not per solve).
+- [ ] Thread the accumulator through `native_klu` (BTF per-block) so the full
+      KLU + iterative-refinement study can use the quire — needs an MTL5
+      follow-up to forward the `Accumulator` parameter through `native_klu_factor`.
 - [ ] Per-precision conditioning / accuracy study across a matrix suite.
 
 ## Milestone 3 — SPICE front-end
