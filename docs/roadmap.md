@@ -79,7 +79,7 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       low-precision type and restores the correction magnitude in double. On
       add32 this **rescues IEEE `half`** (unscaled IR stalls at 5.7e-5 → scaled
       reaches **2.8e-14 in 8 iterations**) and accelerates `posit<16,2>`
-      (6.8e-12 → **1.2e-14**); wide-range types are unchanged. Confirms the
+      (2.7e-12 → **1.2e-14**); wide-range types are unchanged. Confirms the
       `half` stall was a residual *representation* problem, fixed by a single
       double scale factor per step — making every 16-bit type studied a viable
       carrier. Table 3 in [the study](mixed-precision-klu-study.md).
