@@ -37,12 +37,17 @@ All residuals (`‖Ax−b‖∞`) and forward errors (`‖x−1‖∞`) are eval
 
 | type | direct residual | direct fwd err | **IR residual** | **IR fwd err** | IR iters |
 |------|-----------------|----------------|-----------------|----------------|----------|
-| double      | 2.1e-17 | 4.9e-15 | 2.1e-17 | 4.9e-15 | 0 |
-| float       | 6.9e-09 | 3.5e-06 | 2.8e-17 | **5.1e-15** | 2 |
-| bfloat16    | 3.3e-04 | 1.7e-01 | 1.3e-16 | **1.9e-13** | 16 |
-| half        | 5.5e-05 | 2.1e-02 | 3.0e-08 | **5.7e-05** | 30 (capped) |
-| posit<16,2> | 3.1e-05 | 1.1e-02 | 9.5e-15 | **4.5e-12** | 30 (capped) |
-| posit<32,2> | 6.9e-10 | 2.6e-07 | 2.1e-17 | **7.2e-15** | 2 |
+| double      | 2.1e-17 | 4.9e-15 | 2.1e-17 | 4.9e-15 | 1 |
+| float       | 6.9e-09 | 3.5e-06 | 2.8e-17 | **5.1e-15** | 3 |
+| bfloat16    | 3.3e-04 | 1.7e-01 | 1.3e-16 | **1.9e-13** | 17 |
+| half        | 5.5e-05 | 2.1e-02 | 3.0e-08 | **5.7e-05** | 6 (stalls) |
+| posit<16,2> | 3.1e-05 | 1.1e-02 | 3.0e-14 | **6.8e-12** | 11 |
+| posit<32,2> | 6.9e-10 | 2.6e-07 | 2.1e-17 | **7.2e-15** | 3 |
+
+(IR uses MTL5's shared `iterative_refine` core, #119. `iters` counts every
+correction step including the initial solve from `x = 0`; refinement returns the
+best iterate and stops at the residual plateau, so a stalled type like `half`
+exits early rather than spinning to the cap.)
 
 ### What the direct column says
 
@@ -59,11 +64,11 @@ Iterative refinement with a double residual recovers accuracy dramatically for
 
 | type | IR fwd err | converged? |
 |------|-----------|------------|
-| float       | 5.1e-15 | yes (2 it) |
-| posit<32,2> | 7.2e-15 | yes (2 it) |
-| bfloat16    | 1.9e-13 | yes (16 it) |
-| posit<16,2> | 4.5e-12 | yes (30 it, still descending) |
-| **half**    | **5.7e-05** | **no** (stuck) |
+| float       | 5.1e-15 | yes (3 it) |
+| posit<32,2> | 7.2e-15 | yes (3 it) |
+| bfloat16    | 1.9e-13 | yes (17 it) |
+| posit<16,2> | 6.8e-12 | yes (11 it) |
+| **half**    | **5.7e-05** | **no** (stalls) |
 
 The counterintuitive part: **`bfloat16` converges but `half` does not — even
 though `half` has a *better* direct solve and 3× more mantissa bits.**
@@ -93,8 +98,8 @@ is defined for posit products).
 
 | type | direct fwd err (plain → quire) | IR fwd err (plain → quire) | IR iters |
 |------|-------------------------------|----------------------------|----------|
-| posit<16,2> | 1.07e-2 → **0.98e-2** | 4.55e-12 → 4.55e-12 | 30 → 30 |
-| posit<32,2> | 2.61e-7 → **2.38e-7** | 7.22e-15 → **4.89e-15** | 2 → 2 |
+| posit<16,2> | 1.07e-2 → **0.98e-2** | 6.82e-12 → 7.73e-12 | 11 → 11 |
+| posit<32,2> | 2.61e-7 → **2.38e-7** | 7.22e-15 → **4.89e-15** | 3 → 3 |
 
 - On a **direct** solve the quire helps slightly (a few percent here; ~1.5× on
   the denser systems in `klu_quire_study`) — it removes the intra-column
@@ -123,17 +128,17 @@ rho = ||r||_inf  (double);   dx = rho * ( U_T \ ( L_T \ (r / rho) ) )
 
 | type | unscaled IR (fwd err / it) | **scaled IR (fwd err / it)** |
 |------|----------------------------|------------------------------|
-| float       | 5.1e-15 / 2  | 5.6e-15 / 2  (unchanged) |
-| bfloat16    | 1.9e-13 / 16 | 1.7e-13 / 16 (unchanged) |
-| **half**    | **5.7e-05 / 30 (stalled)** | **2.8e-14 / 7 (converged)** |
-| **posit<16,2>** | **4.5e-12 / 30 (capped)** | **1.2e-14 / 6** |
-| posit<32,2> | 7.2e-15 / 2  | 6.8e-14 / 1  (unchanged) |
+| float       | 5.1e-15 / 3  | 5.6e-15 / 3  (unchanged) |
+| bfloat16    | 1.9e-13 / 17 | 1.7e-13 / 17 (unchanged) |
+| **half**    | **5.7e-05 / 6 (stalled)** | **2.8e-14 / 8 (converged)** |
+| **posit<16,2>** | **6.8e-12 / 11** | **1.2e-14 / 7** |
+| posit<32,2> | 7.2e-15 / 3  | 6.8e-14 / 2  (unchanged) |
 
 This is the decisive confirmation that **`half`'s stall is a residual
 *representation* problem, not a fundamental accuracy limit.** Carrying only the
 *magnitude* in double (one scalar per step) collapses `half`'s forward error from
-5.7e-5 to **2.8e-14** — near double-level — in **7** cheap iterations. It also
-takes `posit<16,2>` from capping at 4.5e-12/30 to **1.2e-14 in 6** iterations.
+5.7e-5 to **2.8e-14** — near double-level — in **8** cheap iterations. It also
+takes `posit<16,2>` from a 6.8e-12 plateau to **1.2e-14 in 7** iterations.
 The wide-range types (`float`, `bfloat16`, `posit<32,2>`) are unchanged, exactly
 as expected: scaling matters only when the type's exponent range is the
 bottleneck.
@@ -155,7 +160,7 @@ mixed-precision carrier, including IEEE `half`.
    double-level accuracy in ~2 steps.
 4. **Scaled IR (an extended-precision residual *magnitude*) is the key enabler at
    16 bits.** A single double scale factor per step rescues `half` (5.7e-5 → 2.8e-14)
-   and accelerates `posit<16,2>` (4.5e-12/30 → 1.2e-14/6). With it, **every**
+   and accelerates `posit<16,2>` (6.8e-12 → 1.2e-14). With it, **every**
    16-bit type studied — including IEEE `half` — reaches near double-level
    accuracy. Always scale the refinement RHS for narrow-range low-precision
    carriers.

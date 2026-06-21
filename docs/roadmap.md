@@ -48,7 +48,10 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
 ## Milestone 2 — Mixed-precision solver strategies
 
 - [x] Low-precision factorization + `double` iterative refinement (see the
-      mixed-precision study under Milestone 1 — the compelling result).
+      mixed-precision study under Milestone 1 — the compelling result). The IR
+      loop now delegates to MTL5's generic `mtl::sparse::iterative_refine` core
+      (stillwater-sc/mtl5#119); `mixed_refine`/`mixed_refine_scaled` are thin
+      wrappers that factor in the low precision and call it.
 - [x] Row/column scaling (equilibration): native KLU row-equilibrates by default
       (MTL5 v5.5.0).
 - [x] **Quire super-accumulator** adapter (`include/sw/mp_spice/quire_accumulator.hpp`)
@@ -75,8 +78,8 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       `mixed_refine_scaled` normalizes each residual to O(1) before casting to the
       low-precision type and restores the correction magnitude in double. On
       add32 this **rescues IEEE `half`** (unscaled IR stalls at 5.7e-5 → scaled
-      reaches **2.8e-14 in 7 iterations**) and accelerates `posit<16,2>`
-      (4.5e-12/30 → **1.2e-14/6**); wide-range types are unchanged. Confirms the
+      reaches **2.8e-14 in 8 iterations**) and accelerates `posit<16,2>`
+      (6.8e-12 → **1.2e-14**); wide-range types are unchanged. Confirms the
       `half` stall was a residual *representation* problem, fixed by a single
       double scale factor per step — making every 16-bit type studied a viable
       carrier. Table 3 in [the study](mixed-precision-klu-study.md).

@@ -18,6 +18,7 @@
 #include <mtl/mat/inserter.hpp>
 #include <mtl/vec/dense_vector.hpp>
 #include <mtl/sparse/factorization/native_klu.hpp>
+#include <mtl/sparse/iterative_refine.hpp>
 
 namespace sw::mp_spice {
 
@@ -103,64 +104,44 @@ solve_stats direct_solve(const DSparse& A,
 }
 
 /// Mixed-precision iterative refinement: factor A once in type T, then refine
-/// with a DOUBLE-precision residual. The low-precision factorization is reused
-/// every step (one factor, many solves), so a few cheap correction steps can
-/// recover accuracy far beyond what a direct T-precision solve delivers.
-///
-///   x0 = U_T \ (L_T \ b)                         (solve in T)
-///   repeat:  r = b - A x      (double)
-///            dx = U_T \ (L_T \ r)                (solve in T, reusing factors)
-///            x += dx
-///   until ||r||/||b|| <= tol or max_iter reached.
+/// with a DOUBLE-precision residual via MTL5's generic `iterative_refine` core
+/// (stillwater-sc/mtl5#119). The factorization's solve runs in T; the residual
+/// and corrections are carried in double.
 ///
 /// `Accumulator` selects the per-block accumulator policy of the low-precision
-/// factorization (default: ordinary T arithmetic). Passing an exact accumulator
-/// (e.g. a posit quire) factors with a fused dot product per block, which can
-/// improve the correction quality and thus IR convergence.
+/// factorization (default: ordinary T arithmetic; e.g. a posit quire for a fused
+/// dot product). `scaled` normalizes each residual to O(1) before the correction
+/// solve (carrying the magnitude in double) -- rescues narrow-exponent types.
+///
+/// Note: `iters` counts every correction step including the initial solve (x
+/// starts at zero), and the core returns the best iterate, stopping once the
+/// residual stops improving.
 template <typename T, typename Accumulator = T>
 solve_stats mixed_refine(const DSparse& A,
                          const std::vector<double>& b,
                          const std::vector<double>& exact,
                          int max_iter = 30,
-                         double tol = 1e-14) {
+                         double tol = 1e-14,
+                         bool scaled = false) {
     solve_stats s;
     try {
-        std::size_t n = A.num_rows();
+        const std::size_t n = A.num_rows();
         auto AT = recast<T>(A);
         auto fac = mtl::sparse::factorization::native_klu_factor<
-            T, mtl::mat::parameters<>, Accumulator>(AT);              // factor once in T
+            T, mtl::mat::parameters<>, Accumulator>(AT);             // factor once in T
 
-        const double bnorm = norm_inf(b);
-        mtl::vec::dense_vector<T> rhsT(n), dxT(n, T(0));
+        mtl::vec::dense_vector<double> bv(n), xv(n, 0.0);
+        for (std::size_t i = 0; i < n; ++i) bv(static_cast<int>(i)) = b[i];
 
-        // Initial solve (in T).
-        for (std::size_t i = 0; i < n; ++i) rhsT(static_cast<int>(i)) = static_cast<T>(b[i]);
-        fac.solve(dxT, rhsT);
+        mtl::sparse::refine_options opt;
+        opt.max_iter = max_iter;
+        opt.rel_tol  = tol;
+        opt.scaled   = scaled;
+        auto rr = mtl::sparse::iterative_refine<double>(A, fac, bv, xv, opt);
+
         std::vector<double> x(n);
-        for (std::size_t i = 0; i < n; ++i) x[i] = static_cast<double>(dxT(static_cast<int>(i)));
-
-        // Refinement loop with a double-precision residual.
-        int it = 0;
-        for (; it < max_iter; ++it) {
-            std::vector<double> r(n);
-            {
-                const auto& rp = A.ref_major();
-                const auto& ci = A.ref_minor();
-                const auto& dat = A.ref_data();
-                for (std::size_t row = 0; row < n; ++row) {
-                    double ax = 0.0;
-                    for (std::size_t k = rp[row]; k < rp[row + 1]; ++k) ax += dat[k] * x[ci[k]];
-                    r[row] = b[row] - ax;
-                }
-            }
-            if (bnorm > 0.0 && norm_inf(r) <= tol * bnorm) break;
-
-            for (std::size_t i = 0; i < n; ++i) rhsT(static_cast<int>(i)) = static_cast<T>(r[i]);
-            fac.solve(dxT, rhsT);
-            for (std::size_t i = 0; i < n; ++i) x[i] += static_cast<double>(dxT(static_cast<int>(i)));
-        }
-
-        s.iters = it;
+        for (std::size_t i = 0; i < n; ++i) x[i] = xv(static_cast<int>(i));
+        s.iters = rr.iters;
         s.residual = residual_inf(A, x, b);
         s.fwd_error = forward_error_inf(x, exact);
         s.ok = true;
@@ -168,72 +149,16 @@ solve_stats mixed_refine(const DSparse& A,
     return s;
 }
 
-/// Scaled mixed-precision iterative refinement: like mixed_refine, but every
-/// right-hand side is NORMALIZED to O(1) before it is cast into the low-precision
-/// type, solved, and the correction's magnitude is restored in double:
-///
-///   rho = ||r||_inf  (double);   dx = rho * (U_T \ (L_T \ (r / rho)))
-///
-/// This carries the residual/correction MAGNITUDE in extended (double) precision
-/// while only the normalized SHAPE passes through type T. It rescues
-/// narrow-exponent types (e.g. IEEE half) whose IR otherwise stalls because a
-/// shrinking correction underflows the type's dynamic range when cast directly.
+/// Scaled mixed-precision iterative refinement (see `mixed_refine`, `scaled=true`):
+/// each residual is normalized to O(1) before the low-precision correction solve
+/// and its magnitude restored in double, rescuing narrow-exponent factor types.
 template <typename T, typename Accumulator = T>
 solve_stats mixed_refine_scaled(const DSparse& A,
                                 const std::vector<double>& b,
                                 const std::vector<double>& exact,
                                 int max_iter = 30,
                                 double tol = 1e-14) {
-    solve_stats s;
-    try {
-        std::size_t n = A.num_rows();
-        auto AT = recast<T>(A);
-        auto fac = mtl::sparse::factorization::native_klu_factor<
-            T, mtl::mat::parameters<>, Accumulator>(AT);
-
-        mtl::vec::dense_vector<T> rhsT(n), dxT(n, T(0));
-
-        // Solve A dx = rhs through the T factors with the RHS normalized to O(1)
-        // and the correction's magnitude restored in double. Returns dx (double).
-        auto scaled_solve = [&](const std::vector<double>& rhs) {
-            double rho = norm_inf(rhs);
-            std::vector<double> dx(n, 0.0);
-            if (rho == 0.0) return dx;
-            for (std::size_t i = 0; i < n; ++i)
-                rhsT(static_cast<int>(i)) = static_cast<T>(rhs[i] / rho);
-            fac.solve(dxT, rhsT);
-            for (std::size_t i = 0; i < n; ++i)
-                dx[i] = rho * static_cast<double>(dxT(static_cast<int>(i)));
-            return dx;
-        };
-
-        const double bnorm = norm_inf(b);
-        std::vector<double> x = scaled_solve(b);              // initial solve
-
-        int it = 0;
-        for (; it < max_iter; ++it) {
-            std::vector<double> r(n);
-            {
-                const auto& rp = A.ref_major();
-                const auto& ci = A.ref_minor();
-                const auto& dat = A.ref_data();
-                for (std::size_t row = 0; row < n; ++row) {
-                    double ax = 0.0;
-                    for (std::size_t k = rp[row]; k < rp[row + 1]; ++k) ax += dat[k] * x[ci[k]];
-                    r[row] = b[row] - ax;
-                }
-            }
-            if (bnorm > 0.0 && norm_inf(r) <= tol * bnorm) break;
-            auto dx = scaled_solve(r);
-            for (std::size_t i = 0; i < n; ++i) x[i] += dx[i];
-        }
-
-        s.iters = it;
-        s.residual = residual_inf(A, x, b);
-        s.fwd_error = forward_error_inf(x, exact);
-        s.ok = true;
-    } catch (const std::exception& e) { s.error = e.what(); }
-    return s;
+    return mixed_refine<T, Accumulator>(A, b, exact, max_iter, tol, /*scaled=*/true);
 }
 
 /// Build a reproducible RHS b = A * ones, so the exact solution is all-ones.
