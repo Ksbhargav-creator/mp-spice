@@ -27,6 +27,7 @@
 
 #include <universal/number/posit/posit.hpp>
 #include <sw/mp_spice/quire_accumulator.hpp>
+#include <sw/mp_spice/klu_study.hpp>
 
 namespace {
 
@@ -126,28 +127,61 @@ int main(int argc, char** argv) {
                 (size_t)A.num_rows(), (size_t)A.num_cols(), (size_t)A.nnz());
 
     using namespace sw::universal;
-    std::vector<Result> rows = {
-        compare<posit<8, 2>>("posit<8,2>", A),
-        compare<posit<16, 2>>("posit<16,2>", A),
-        compare<posit<32, 2>>("posit<32,2>", A),
+
+    // Part 1 -- direct sparse_lu (no BTF, single elimination) plain vs quire.
+    // This is an O(fill) dense-ish factorization done THREE times in slow posit
+    // arithmetic, so restrict it to small matrices; large circuit matrices use
+    // Part 2 (BTF native KLU) below.
+    constexpr std::size_t kDirectMax = 256;
+    if (A.num_rows() <= kDirectMax) {
+        std::vector<Result> rows = {
+            compare<posit<8, 2>>("posit<8,2>", A),
+            compare<posit<16, 2>>("posit<16,2>", A),
+            compare<posit<32, 2>>("posit<32,2>", A),
+        };
+        std::printf("Direct sparse-LU factorization (plain vs quire accumulator):\n");
+        std::printf("%-13s | %11s %11s | %11s %11s\n",
+                    "type", "plain res", "plain ferr", "quire res", "quire ferr");
+        std::printf("%s\n", std::string(66, '-').c_str());
+        for (const auto& r : rows) {
+            if (r.ok) std::printf("%-13s | %11.3e %11.3e | %11.3e %11.3e\n",
+                                  r.type.c_str(), r.plain_res, r.plain_ferr, r.quire_res, r.quire_ferr);
+            else std::printf("%-13s | factorization failed\n", r.type.c_str());
+        }
+        if (!csv.empty()) {
+            std::ofstream o(csv);
+            o << "type,plain_residual,plain_fwd_error,quire_residual,quire_fwd_error\n";
+            for (const auto& r : rows)
+                if (r.ok) o << r.type << ',' << r.plain_res << ',' << r.plain_ferr << ','
+                            << r.quire_res << ',' << r.quire_ferr << '\n';
+            std::printf("CSV: %s\n", csv.c_str());
+        }
+    } else {
+        std::printf("Direct sparse-LU comparison skipped (n=%zu > %zu; use the "
+                    "BTF native-KLU + IR section below for large matrices).\n",
+                    (size_t)A.num_rows(), kDirectMax);
+    }
+
+    // --- Native KLU + mixed-precision iterative refinement: plain vs quire ---
+    // Factor in posit (full BTF KLU) and refine with a double residual. Does the
+    // exact per-block accumulator improve the IR result/convergence?
+    std::printf("\nNative KLU + double-residual iterative refinement (factor in posit):\n");
+    std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
+                "type", "plain res", "plain ferr", "it", "quire res", "quire ferr", "it");
+    std::printf("%s\n", std::string(74, '-').c_str());
+    std::vector<double> ones(A.num_rows(), 1.0);
+    auto b = sw::mp_spice::rhs_from_ones(A);
+    auto ir_row = [&](const std::string& type, auto tag) {
+        using P = decltype(tag);
+        auto plain = sw::mp_spice::mixed_refine<P>(A, b, ones);
+        auto quire = sw::mp_spice::mixed_refine<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
+        auto cell = [](const sw::mp_spice::solve_stats& s) {
+            if (s.ok) std::printf(" %11.3e %11.3e %5d", s.residual, s.fwd_error, s.iters);
+            else      std::printf(" %11s %11s %5s", "FAIL", "-", "-");
+        };
+        std::printf("%-13s |", type.c_str()); cell(plain); std::printf(" |"); cell(quire); std::printf("\n");
     };
-
-    std::printf("%-13s | %11s %11s | %11s %11s\n",
-                "type", "plain res", "plain ferr", "quire res", "quire ferr");
-    std::printf("%s\n", std::string(66, '-').c_str());
-    for (const auto& r : rows) {
-        if (r.ok) std::printf("%-13s | %11.3e %11.3e | %11.3e %11.3e\n",
-                              r.type.c_str(), r.plain_res, r.plain_ferr, r.quire_res, r.quire_ferr);
-        else std::printf("%-13s | factorization failed\n", r.type.c_str());
-    }
-
-    if (!csv.empty()) {
-        std::ofstream o(csv);
-        o << "type,plain_residual,plain_fwd_error,quire_residual,quire_fwd_error\n";
-        for (const auto& r : rows)
-            if (r.ok) o << r.type << ',' << r.plain_res << ',' << r.plain_ferr << ','
-                        << r.quire_res << ',' << r.quire_ferr << '\n';
-        std::printf("\nCSV: %s\n", csv.c_str());
-    }
+    ir_row("posit<16,2>", posit<16, 2>{});
+    ir_row("posit<32,2>", posit<32, 2>{});
     return 0;
 }

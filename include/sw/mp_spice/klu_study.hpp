@@ -108,7 +108,12 @@ solve_stats direct_solve(const DSparse& A,
 ///            dx = U_T \ (L_T \ r)                (solve in T, reusing factors)
 ///            x += dx
 ///   until ||r||/||b|| <= tol or max_iter reached.
-template <typename T>
+///
+/// `Accumulator` selects the per-block accumulator policy of the low-precision
+/// factorization (default: ordinary T arithmetic). Passing an exact accumulator
+/// (e.g. a posit quire) factors with a fused dot product per block, which can
+/// improve the correction quality and thus IR convergence.
+template <typename T, typename Accumulator = T>
 solve_stats mixed_refine(const DSparse& A,
                          const std::vector<double>& b,
                          const std::vector<double>& exact,
@@ -118,7 +123,8 @@ solve_stats mixed_refine(const DSparse& A,
     try {
         std::size_t n = A.num_rows();
         auto AT = recast<T>(A);
-        auto fac = mtl::sparse::factorization::native_klu_factor(AT);  // factor once in T
+        auto fac = mtl::sparse::factorization::native_klu_factor<
+            T, mtl::mat::parameters<>, Accumulator>(AT);              // factor once in T
 
         const double bnorm = norm_inf(b);
         mtl::vec::dense_vector<T> rhsT(n), dxT(n, T(0));

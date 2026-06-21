@@ -62,9 +62,26 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       Confirms exact accumulation reduces the factorization's backward error;
       the gain is bounded by the per-column resolve precision (single rounding
       per column, not per solve).
-- [ ] Thread the accumulator through `native_klu` (BTF per-block) so the full
-      KLU + iterative-refinement study can use the quire — needs an MTL5
-      follow-up to forward the `Accumulator` parameter through `native_klu_factor`.
+- [x] Thread the accumulator through `native_klu` (BTF per-block): MTL5
+      `native_klu_factor` now takes an `Accumulator` parameter
+      (stillwater-sc/mtl5#156), so the full BTF-KLU factorization can use the
+      quire. `klu_quire_study` adds a **native-KLU + iterative-refinement**
+      comparison (plain vs quire) for large circuit matrices.
+
+      **Key finding (add32, factor in posit + double-residual IR):** the quire
+      makes **essentially no difference** once IR is applied — posit<16,2>
+      reaches the same 4.5e-12 floor in the same 30 iterations with or without
+      it; posit<32,2> converges in 2 steps either way. IR already compensates
+      for the factorization's accumulation error, so the quire's exactness
+      (which *does* help a *direct* solve, ~1.5×, see above) is washed out; the
+      IR floor is set by the working precision's ability to **represent** x and
+      the correction, not by dot-product accumulation. Practical guidance for
+      mixed-precision SPICE: **prefer cheap iterative refinement over the
+      (expensive) quire when you can iterate**; the quire's niche is a single
+      high-quality factorization without refinement. (The quire also does not
+      address the cfloat<16,5> IR non-convergence from Milestone 1 — that is a
+      residual/correction *representation* problem, not a factorization
+      *accumulation* problem.)
 - [ ] Per-precision conditioning / accuracy study across a matrix suite.
 
 ## Milestone 3 — SPICE front-end
