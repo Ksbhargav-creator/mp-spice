@@ -71,9 +71,15 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       - **The quire helps a direct solve (~1.5×) but is washed out by IR** — IR
         already absorbs the factorization's accumulation error. Prefer cheap IR
         over the expensive quire when you can iterate.
-- [ ] Residual/correction in extended precision (the lever IR is actually
-      sensitive to; would let narrow-range types like `half` refine) — quire on
-      the residual rather than the factorization.
+- [x] **Scaled iterative refinement** (extended-precision residual magnitude):
+      `mixed_refine_scaled` normalizes each residual to O(1) before casting to the
+      low-precision type and restores the correction magnitude in double. On
+      add32 this **rescues IEEE `half`** (unscaled IR stalls at 5.7e-5 → scaled
+      reaches **2.8e-14 in 7 iterations**) and accelerates `posit<16,2>`
+      (4.5e-12/30 → **1.2e-14/6**); wide-range types are unchanged. Confirms the
+      `half` stall was a residual *representation* problem, fixed by a single
+      double scale factor per step — making every 16-bit type studied a viable
+      carrier. Table 3 in [the study](mixed-precision-klu-study.md).
 - [ ] Per-precision conditioning / accuracy study across a matrix suite.
 
 ## Milestone 3 — SPICE front-end

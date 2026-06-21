@@ -120,6 +120,33 @@ int main(int argc, char** argv) {
     row2("posit<16,2>", posit<16, 2>{});
     row2("posit<32,2>", posit<32, 2>{});
 
+    // ---- Table 3: unscaled vs scaled IR (extended-precision residual) ----
+    // Scaled IR normalizes each residual to O(1) before casting to the type and
+    // carries the correction magnitude in double -- rescuing narrow-exponent
+    // types (half) whose unscaled IR underflows.
+    std::printf("\nTable 3 -- iterative refinement: unscaled vs scaled (extended-precision residual)\n");
+    std::printf("%-13s | %11s %5s | %11s %5s\n",
+                "type", "unscaled fe", "it", "scaled fe", "it");
+    std::printf("%s\n", std::string(54, '-').c_str());
+    struct T3 { std::string t; solve_stats u, sc; };
+    std::vector<T3> t3;
+    auto row3 = [&](const std::string& t, auto tag) {
+        using P = decltype(tag);
+        T3 r{t, sw::mp_spice::mixed_refine<P>(A, b, ones),
+                sw::mp_spice::mixed_refine_scaled<P>(A, b, ones)};
+        auto fe = [](const solve_stats& s) {
+            if (s.ok) std::printf(" %11.3e %5d", s.fwd_error, s.iters);
+            else      std::printf(" %11s %5s", "FAIL", "-");
+        };
+        std::printf("%-13s |", t.c_str()); fe(r.u); std::printf(" |"); fe(r.sc); std::printf("\n");
+        t3.push_back(r);
+    };
+    row3("float",       float{});
+    row3("bfloat16",    bfloat16{});
+    row3("half",        half{});
+    row3("posit<16,2>", posit<16, 2>{});
+    row3("posit<32,2>", posit<32, 2>{});
+
     if (!csv.empty()) {
         std::ofstream o(csv);
         o << "table,type,a_residual,a_fwd_error,a_iters,b_residual,b_fwd_error,b_iters\n";
@@ -132,6 +159,9 @@ int main(int argc, char** argv) {
             o << "quire_IR," << r.t << ',' << r.ip.residual << ',' << r.ip.fwd_error << ',' << r.ip.iters << ','
               << r.iq.residual << ',' << r.iq.fwd_error << ',' << r.iq.iters << '\n';
         }
+        for (const auto& r : t3)
+            o << "scaled_ir," << r.t << ',' << r.u.residual << ',' << r.u.fwd_error << ',' << r.u.iters << ','
+              << r.sc.residual << ',' << r.sc.fwd_error << ',' << r.sc.iters << '\n';
         std::printf("\nCSV: %s\n", csv.c_str());
     }
     return 0;

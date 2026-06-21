@@ -168,6 +168,74 @@ solve_stats mixed_refine(const DSparse& A,
     return s;
 }
 
+/// Scaled mixed-precision iterative refinement: like mixed_refine, but every
+/// right-hand side is NORMALIZED to O(1) before it is cast into the low-precision
+/// type, solved, and the correction's magnitude is restored in double:
+///
+///   rho = ||r||_inf  (double);   dx = rho * (U_T \ (L_T \ (r / rho)))
+///
+/// This carries the residual/correction MAGNITUDE in extended (double) precision
+/// while only the normalized SHAPE passes through type T. It rescues
+/// narrow-exponent types (e.g. IEEE half) whose IR otherwise stalls because a
+/// shrinking correction underflows the type's dynamic range when cast directly.
+template <typename T, typename Accumulator = T>
+solve_stats mixed_refine_scaled(const DSparse& A,
+                                const std::vector<double>& b,
+                                const std::vector<double>& exact,
+                                int max_iter = 30,
+                                double tol = 1e-14) {
+    solve_stats s;
+    try {
+        std::size_t n = A.num_rows();
+        auto AT = recast<T>(A);
+        auto fac = mtl::sparse::factorization::native_klu_factor<
+            T, mtl::mat::parameters<>, Accumulator>(AT);
+
+        mtl::vec::dense_vector<T> rhsT(n), dxT(n, T(0));
+
+        // Solve A dx = rhs through the T factors with the RHS normalized to O(1)
+        // and the correction's magnitude restored in double. Returns dx (double).
+        auto scaled_solve = [&](const std::vector<double>& rhs) {
+            double rho = norm_inf(rhs);
+            std::vector<double> dx(n, 0.0);
+            if (rho == 0.0) return dx;
+            for (std::size_t i = 0; i < n; ++i)
+                rhsT(static_cast<int>(i)) = static_cast<T>(rhs[i] / rho);
+            fac.solve(dxT, rhsT);
+            for (std::size_t i = 0; i < n; ++i)
+                dx[i] = rho * static_cast<double>(dxT(static_cast<int>(i)));
+            return dx;
+        };
+
+        const double bnorm = norm_inf(b);
+        std::vector<double> x = scaled_solve(b);              // initial solve
+
+        int it = 0;
+        for (; it < max_iter; ++it) {
+            std::vector<double> r(n);
+            {
+                const auto& rp = A.ref_major();
+                const auto& ci = A.ref_minor();
+                const auto& dat = A.ref_data();
+                for (std::size_t row = 0; row < n; ++row) {
+                    double ax = 0.0;
+                    for (std::size_t k = rp[row]; k < rp[row + 1]; ++k) ax += dat[k] * x[ci[k]];
+                    r[row] = b[row] - ax;
+                }
+            }
+            if (bnorm > 0.0 && norm_inf(r) <= tol * bnorm) break;
+            auto dx = scaled_solve(r);
+            for (std::size_t i = 0; i < n; ++i) x[i] += dx[i];
+        }
+
+        s.iters = it;
+        s.residual = residual_inf(A, x, b);
+        s.fwd_error = forward_error_inf(x, exact);
+        s.ok = true;
+    } catch (const std::exception& e) { s.error = e.what(); }
+    return s;
+}
+
 /// Build a reproducible RHS b = A * ones, so the exact solution is all-ones.
 inline std::vector<double> rhs_from_ones(const DSparse& A) {
     std::size_t n = A.num_rows();

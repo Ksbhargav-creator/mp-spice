@@ -106,9 +106,41 @@ is defined for posit products).
 
 **Practical rule:** prefer cheap iterative refinement over the (much more
 expensive) quire when you can iterate. The quire's niche is a **single
-high-quality factorization without refinement** — or future use as the
-high-precision accumulator for the *residual* itself, which is the part IR is
-actually sensitive to (see below).
+high-quality factorization without refinement**. The part IR is *actually*
+sensitive to is the residual/correction representation — see Table 3.
+
+## Table 3 — scaled iterative refinement (extended-precision residual)
+
+The Table 1 IR column casts each residual directly into the low-precision type.
+As the correction shrinks, a narrow-exponent type (`half`) underflows and IR
+stalls. **Scaled IR** normalizes each residual to O(1) before casting, solves,
+and restores the correction's magnitude in double — so only the normalized
+*shape* passes through the type:
+
+```
+rho = ||r||_inf  (double);   dx = rho * ( U_T \ ( L_T \ (r / rho) ) )
+```
+
+| type | unscaled IR (fwd err / it) | **scaled IR (fwd err / it)** |
+|------|----------------------------|------------------------------|
+| float       | 5.1e-15 / 2  | 5.6e-15 / 2  (unchanged) |
+| bfloat16    | 1.9e-13 / 16 | 1.7e-13 / 16 (unchanged) |
+| **half**    | **5.7e-05 / 30 (stalled)** | **2.8e-14 / 7 (converged)** |
+| **posit<16,2>** | **4.5e-12 / 30 (capped)** | **1.2e-14 / 6** |
+| posit<32,2> | 7.2e-15 / 2  | 6.8e-14 / 1  (unchanged) |
+
+This is the decisive confirmation that **`half`'s stall is a residual
+*representation* problem, not a fundamental accuracy limit.** Carrying only the
+*magnitude* in double (one scalar per step) collapses `half`'s forward error from
+5.7e-5 to **2.8e-14** — near double-level — in **7** cheap iterations. It also
+takes `posit<16,2>` from capping at 4.5e-12/30 to **1.2e-14 in 6** iterations.
+The wide-range types (`float`, `bfloat16`, `posit<32,2>`) are unchanged, exactly
+as expected: scaling matters only when the type's exponent range is the
+bottleneck.
+
+So the practical fix is almost free — a single `double` scale factor per
+refinement step — and it makes **every** 16-bit type studied a viable
+mixed-precision carrier, including IEEE `half`.
 
 ## Synthesis and guidance for mixed-precision SPICE
 
@@ -121,19 +153,24 @@ actually sensitive to (see below).
 3. **IR is the cheap, dominant accuracy lever.** Factor low, refine with a
    double residual, reuse the factorization — float and posit<32,2> reach
    double-level accuracy in ~2 steps.
-4. **The quire's payoff is in the factorization's backward error, which IR makes
-   redundant.** The open lever it does *not* yet address is the **residual /
-   correction representation** — the actual cause of `half`'s stall. A natural
-   next experiment is to carry the residual and correction in a wider
-   accumulator (or compute the residual in extended precision) so even a
-   narrow-range low-precision factor can refine.
+4. **Scaled IR (an extended-precision residual *magnitude*) is the key enabler at
+   16 bits.** A single double scale factor per step rescues `half` (5.7e-5 → 2.8e-14)
+   and accelerates `posit<16,2>` (4.5e-12/30 → 1.2e-14/6). With it, **every**
+   16-bit type studied — including IEEE `half` — reaches near double-level
+   accuracy. Always scale the refinement RHS for narrow-range low-precision
+   carriers.
+5. **The quire's payoff is in the factorization's backward error, which IR makes
+   redundant.** Exact accumulation in the *factorization* buys little once you
+   refine; the lever that mattered was the residual/correction *representation*
+   (point 4), which scaled IR addresses cheaply without a quire.
 
 ## Files
 
 - `applications/klu_precision_study/` — Table 1 + Table 2 (this study).
 - `applications/klu_quire_study/` — quire deep-dive (direct + IR, with the
   small-matrix dense sweep).
-- `include/sw/mp_spice/klu_study.hpp` — `direct_solve`, `mixed_refine`
-  (both accumulator-parameterized), residual/forward-error helpers.
+- `include/sw/mp_spice/klu_study.hpp` — `direct_solve`, `mixed_refine`,
+  `mixed_refine_scaled` (all accumulator-parameterized), residual/forward-error
+  helpers.
 - `include/sw/mp_spice/quire_accumulator.hpp` — the posit-quire accumulator
   adapter for MTL5's `accumulator_traits` seam.
