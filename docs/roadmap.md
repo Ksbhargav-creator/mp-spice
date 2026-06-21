@@ -51,37 +51,29 @@ SuiteSparse circuit matrices and compare accuracy across `double`, `float`,
       mixed-precision study under Milestone 1 — the compelling result).
 - [x] Row/column scaling (equilibration): native KLU row-equilibrates by default
       (MTL5 v5.5.0).
-- [x] **Quire super-accumulator study** (`applications/klu_quire_study`,
-      adapter in `include/sw/mp_spice/quire_accumulator.hpp`): fills MTL5's
-      sparse_lu accumulator seam (stillwater-sc/mtl5#122) with a Universal posit
-      **quire**, so each column's inner products in the LU round only once (a
-      fused dot product). Compares plain vs quire posit factorization across
-      widths. Result (dense well-conditioned 40×40): the quire lowers the
-      residual ~1.5× for posit<16,2>/<32,2> and the forward error for
-      posit<16,2>; posit<8,2> sees no gain (the resolve precision floors it).
-      Confirms exact accumulation reduces the factorization's backward error;
-      the gain is bounded by the per-column resolve precision (single rounding
-      per column, not per solve).
-- [x] Thread the accumulator through `native_klu` (BTF per-block): MTL5
-      `native_klu_factor` now takes an `Accumulator` parameter
-      (stillwater-sc/mtl5#156), so the full BTF-KLU factorization can use the
-      quire. `klu_quire_study` adds a **native-KLU + iterative-refinement**
-      comparison (plain vs quire) for large circuit matrices.
+- [x] **Quire super-accumulator** adapter (`include/sw/mp_spice/quire_accumulator.hpp`)
+      fills MTL5's sparse_lu accumulator seam (stillwater-sc/mtl5#122) with a
+      Universal posit quire (exact fused dot product); MTL5
+      `native_klu_factor` forwards an `Accumulator` (stillwater-sc/mtl5#156) so
+      the full BTF-KLU factorization can use it.
+- [x] **Comprehensive precision study** (`applications/klu_precision_study`) and
+      quire deep-dive (`applications/klu_quire_study`). Full write-up with tables:
+      [docs/mixed-precision-klu-study.md](mixed-precision-klu-study.md).
 
-      **Key finding (add32, factor in posit + double-residual IR):** the quire
-      makes **essentially no difference** once IR is applied — posit<16,2>
-      reaches the same 4.5e-12 floor in the same 30 iterations with or without
-      it; posit<32,2> converges in 2 steps either way. IR already compensates
-      for the factorization's accumulation error, so the quire's exactness
-      (which *does* help a *direct* solve, ~1.5×, see above) is washed out; the
-      IR floor is set by the working precision's ability to **represent** x and
-      the correction, not by dot-product accumulation. Practical guidance for
-      mixed-precision SPICE: **prefer cheap iterative refinement over the
-      (expensive) quire when you can iterate**; the quire's niche is a single
-      high-quality factorization without refinement. (The quire also does not
-      address the cfloat<16,5> IR non-convergence from Milestone 1 — that is a
-      residual/correction *representation* problem, not a factorization
-      *accumulation* problem.)
+      Headline findings (add32, 4960×4960):
+      - **For iterative refinement, dynamic range beats mantissa width.** `float`,
+        `bfloat16`, and both posits refine to ~1e-13 or better; IEEE `half`
+        **stalls** (~5.7e-5) despite a better *direct* solve and 3× the mantissa —
+        its narrow 5-bit exponent underflows the small IR corrections. Choose the
+        IR carrier by exponent range, not precision.
+      - **Posits are the best 16/32-bit carriers** (best direct accuracy at each
+        width).
+      - **The quire helps a direct solve (~1.5×) but is washed out by IR** — IR
+        already absorbs the factorization's accumulation error. Prefer cheap IR
+        over the expensive quire when you can iterate.
+- [ ] Residual/correction in extended precision (the lever IR is actually
+      sensitive to; would let narrow-range types like `half` refine) — quire on
+      the residual rather than the factorization.
 - [ ] Per-precision conditioning / accuracy study across a matrix suite.
 
 ## Milestone 3 — SPICE front-end

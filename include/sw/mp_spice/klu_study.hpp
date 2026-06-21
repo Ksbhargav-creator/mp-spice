@@ -77,8 +77,10 @@ inline double norm_inf(const std::vector<double>& v) {
     return m;
 }
 
-/// Direct solve of A x = b entirely in arithmetic type T (native KLU).
-template <typename T>
+/// Direct solve of A x = b entirely in arithmetic type T (native KLU). The
+/// optional `Accumulator` selects the per-block accumulator policy (default:
+/// ordinary T arithmetic; pass e.g. a posit quire for an exact fused dot product).
+template <typename T, typename Accumulator = T>
 solve_stats direct_solve(const DSparse& A,
                          const std::vector<double>& b,
                          const std::vector<double>& exact) {
@@ -88,7 +90,9 @@ solve_stats direct_solve(const DSparse& A,
         auto AT = recast<T>(A);
         mtl::vec::dense_vector<T> bT(n), xT(n, T(0));
         for (std::size_t i = 0; i < n; ++i) bT(static_cast<int>(i)) = static_cast<T>(b[i]);
-        mtl::sparse::factorization::native_klu_solve(AT, xT, bT);
+        auto fac = mtl::sparse::factorization::native_klu_factor<
+            T, mtl::mat::parameters<>, Accumulator>(AT);
+        fac.solve(xT, bT);
         std::vector<double> x(n);
         for (std::size_t i = 0; i < n; ++i) x[i] = static_cast<double>(xT(static_cast<int>(i)));
         s.residual = residual_inf(A, x, b);

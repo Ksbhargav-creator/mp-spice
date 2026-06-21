@@ -9,3 +9,6 @@ add_subdirectory(klu_mixed_precision_study)
 
 # Quire super-accumulator study: plain vs exact-accumulation posit sparse LU.
 add_subdirectory(klu_quire_study)
+
+# Comprehensive precision study: double/float/bfloat16/half/posit x {direct,IR,quire}.
+add_subdirectory(klu_precision_study)
