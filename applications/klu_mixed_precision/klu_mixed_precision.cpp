@@ -30,12 +30,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include <mtl/mat/compressed2D.hpp>
 #include <mtl/mat/inserter.hpp>
 #include <mtl/vec/dense_vector.hpp>
 #include <mtl/io/matrix_market.hpp>
 #include <mtl/sparse/factorization/native_klu.hpp>
+#include "benchmarks/benchmark_result.hpp"
 
 #ifdef MPSPICE_MIXED_PRECISION_KLU
 #include <universal/number/cfloat/cfloat.hpp>
@@ -120,7 +122,7 @@ double forward_error_inf(const std::vector<double>& x,
 
 // Solve in type T and print a result row. A failed factorization (common for
 // low precision on stiff circuit matrices) is reported, not fatal.
-template <typename T>
+/*template <typename T>
 void run_row(const std::string& label, const Sparse& A,
              const std::vector<double>& b, const std::vector<double>& exact) {
     try {
@@ -133,6 +135,83 @@ void run_row(const std::string& label, const Sparse& A,
         std::cout << "  " << std::left << std::setw(14) << label
                   << "   solve failed: " << e.what() << '\n';
     }
+}*/
+
+template <typename T>
+BenchmarkResult run_row(
+    const std::string& label,
+    const Sparse& A,
+    const std::vector<double>& b,
+    const std::vector<double>& exact)
+{
+    BenchmarkResult result;
+
+    result.arithmetic_name = label;
+
+    try {
+
+        auto start =
+            std::chrono::steady_clock::now();
+
+        auto x = solve_in<T>(A, b);
+
+        auto end =
+            std::chrono::steady_clock::now();
+
+        result.solve_ms =
+            std::chrono::duration<double, std::milli>(
+                end - start).count();
+
+        result.residual_inf =
+            residual_inf(A, x, b);
+
+        result.forward_error_inf =
+            forward_error_inf(x, exact);
+
+        result.status =
+            SolveStatus::Success;
+
+    }
+    catch (const std::exception& e) {
+
+        result.status =
+            SolveStatus::Failure;
+
+        result.error_message =
+            e.what();
+    }
+
+    return result;
+}
+
+void print_result(
+    const BenchmarkResult& r)
+{
+    std::cout
+        << std::left
+        << std::setw(14)
+        << r.arithmetic_name;
+
+    if (r.status != SolveStatus::Success) {
+
+        std::cout
+            << " failed: "
+            << r.error_message
+            << '\n';
+
+        return;
+    }
+
+    std::cout
+        << std::scientific
+        << std::setprecision(3)
+        << std::setw(15)
+        << r.residual_inf
+        << std::setw(15)
+        << r.forward_error_inf
+        << std::setw(15)
+        << r.solve_ms
+        << '\n';
 }
 
 } // namespace
@@ -166,17 +245,50 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "Native KLU solve, exact solution is all-ones:\n\n";
-    std::cout << "  " << std::left << std::setw(14) << "type" << std::right
-              << "   " << std::setw(12) << "||Ax-b||inf"
-              << "   " << std::setw(12) << "||x-1||inf" << '\n';
-    std::cout << "  " << std::string(42, '-') << '\n';
 
-    run_row<double>("double", A, b, ones);
-    run_row<float>("float", A, b, ones);
+    std::cout
+        << std::left
+        << std::setw(14) << "type"
+        << std::setw(15) << "residual_inf"
+        << std::setw(15) << "forward_err"
+        << std::setw(15) << "solve_ms"
+        << '\n';
+
+    std::cout
+        << std::string(59, '-')
+        << '\n';
+
+    //run_row<double>("double", A, b, ones);
+    //run_row<float>("float", A, b, ones);
+    auto r1 = run_row<double>(
+    "double",
+    A,
+    b,
+    ones);
+
+    auto r2 = run_row<float>(
+        "float",
+        A,
+        b,
+        ones);
+
+    print_result(r1);
+    print_result(r2);
 
 #ifdef MPSPICE_MIXED_PRECISION_KLU
-    run_row<sw::universal::cfloat<16, 5>>("cfloat<16,5>", A, b, ones);
-    run_row<sw::universal::posit<16, 2>>("posit<16,2>", A, b, ones);
+    auto r3 = run_row<sw::universal::posit<16,2>>(
+            "posit<16,2>",
+            A,
+            b,
+            ones);
+
+    auto r4 = run_row<sw::universal::cfloat<16,5>>(
+            "cfloat<16,5>",
+            A,
+            b,
+            ones);
+    print_result(r3);
+    print_result(r4);
 #else
     std::cout << "\n  [cfloat<16,5> and posit<16,2> paths disabled: build with "
                  "-DMPSPICE_MIXED_PRECISION_KLU=ON]\n";
