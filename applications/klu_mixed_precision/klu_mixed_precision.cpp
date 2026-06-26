@@ -38,6 +38,7 @@
 #include <mtl/io/matrix_market.hpp>
 #include <mtl/sparse/factorization/native_klu.hpp>
 #include "benchmarks/benchmark_result.hpp"
+#include "include/sw/mp_spice/quire_accumulator.hpp"
 
 #ifdef MPSPICE_MIXED_PRECISION_KLU
 #include <universal/number/cfloat/cfloat.hpp>
@@ -85,7 +86,7 @@ double residual_inf(const Sparse& A,
 }
 
 // Solve A*x = b in arithmetic type T, return the solution cast back to double.
-template <typename T>
+template <typename T, typename Accumulator = T>
 std::vector<double> solve_in(const Sparse& A_ref, const std::vector<double>& b_ref) {
     const std::size_t n = A_ref.num_rows();
 
@@ -102,8 +103,10 @@ std::vector<double> solve_in(const Sparse& A_ref, const std::vector<double>& b_r
     }
     mtl::vec::dense_vector<T> b(n), x(n, T(0));
     for (std::size_t i = 0; i < n; ++i) b(static_cast<int>(i)) = static_cast<T>(b_ref[i]);
-
-    mtl::sparse::factorization::native_klu_solve(A, x, b);
+    //Replace native_klu_solve with native_klu_factor and inject quire into that.
+    //mtl::sparse::factorization::native_klu_solve(A, x, b);
+    auto fac = mtl::sparse::factorization::native_klu_factor<T,typename decltype(A)::param_type,Accumulator>(A);
+        fac.solve(x, b);
 
     std::vector<double> out(n);
     for (std::size_t i = 0; i < n; ++i)
@@ -137,7 +140,7 @@ void run_row(const std::string& label, const Sparse& A,
     }
 }*/
 
-template <typename T>
+template <typename T, typename Accumulator = T>
 BenchmarkResult run_row(
     const std::string& label,
     const Sparse& A,
@@ -153,7 +156,7 @@ BenchmarkResult run_row(
         auto start =
             std::chrono::steady_clock::now();
 
-        auto x = solve_in<T>(A, b);
+        auto x = solve_in<T, Accumulator>(A, b);
 
         auto end =
             std::chrono::steady_clock::now();
@@ -287,8 +290,14 @@ int main(int argc, char** argv) {
             A,
             b,
             ones);
+    auto r5 = run_row<sw::universal::posit<16,2>,sw::mp_spice::quire_acc<sw::universal::posit<16,2>>>(
+            "p<16,2>+quire",
+            A,
+            b,
+            ones);
     print_result(r3);
     print_result(r4);
+    print_result(r5);
 #else
     std::cout << "\n  [cfloat<16,5> and posit<16,2> paths disabled: build with "
                  "-DMPSPICE_MIXED_PRECISION_KLU=ON]\n";
