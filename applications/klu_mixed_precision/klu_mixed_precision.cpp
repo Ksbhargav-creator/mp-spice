@@ -45,6 +45,10 @@
 #include <universal/number/posit/posit.hpp>
 #endif
 
+#ifdef MTL5_HAS_KLU
+#include <mtl/interface/klu.hpp>
+#endif
+
 namespace {
 
 using Sparse = mtl::mat::compressed2D<double>;
@@ -113,6 +117,31 @@ std::vector<double> solve_in(const Sparse& A_ref, const std::vector<double>& b_r
         out[i] = static_cast<double>(x(static_cast<int>(i)));
     return out;
 }
+
+#ifdef MTL5_HAS_KLU
+
+std::vector<double>
+solve_suitesparse(const Sparse& A,
+    const std::vector<double>& b_ref)
+{
+    const std::size_t n = A.num_rows();
+
+    mtl::vec::dense_vector<double> b(n), x(n);
+
+    for (std::size_t i = 0; i < n; ++i)
+        b(static_cast<int>(i)) = b_ref[i];
+
+    mtl::interface::klu_solver solver(A);
+    solver.solve(x, b);
+
+    std::vector<double> out(n);
+
+    for (std::size_t i = 0; i < n; ++i)
+        out[i] = x(static_cast<int>(i));
+
+    return out;
+    }
+#endif
 
 // Forward error ||x - exact||_inf (exact solution is known: all ones).
 double forward_error_inf(const std::vector<double>& x,
@@ -186,6 +215,47 @@ BenchmarkResult run_row(
 
     return result;
 }
+#ifdef MTL5_HAS_KLU
+
+BenchmarkResult
+run_row_suitesparse(const std::string& label,
+                    const Sparse& A,
+                    const std::vector<double>& b,
+                    const std::vector<double>& exact)
+{
+    BenchmarkResult result;
+
+    result.arithmetic_name = label;
+
+    try {
+
+        auto start = std::chrono::steady_clock::now();
+
+        auto x = solve_suitesparse(A, b);
+
+        auto end = std::chrono::steady_clock::now();
+
+        result.solve_ms =
+            std::chrono::duration<double, std::milli>(end - start).count();
+
+        result.residual_inf =
+            residual_inf(A, x, b);
+
+        result.forward_error_inf =
+            forward_error_inf(x, exact);
+
+        result.status = SolveStatus::Success;
+    }
+    catch (const std::exception& e) {
+
+        result.status = SolveStatus::Failure;
+        result.error_message = e.what();
+    }
+
+    return result;
+}
+
+#endif
 
 void print_result(
     const BenchmarkResult& r)
@@ -269,6 +339,14 @@ int main(int argc, char** argv) {
     b,
     ones);
 
+    #ifdef MTL5_HAS_KLU
+    auto rs = run_row_suitesparse(
+    "SuiteSparse",
+    A,
+    b,
+    ones);
+    #endif
+
     auto r2 = run_row<float>(
         "float",
         A,
@@ -276,6 +354,9 @@ int main(int argc, char** argv) {
         ones);
 
     print_result(r1);
+    #ifdef MTL5_HAS_KLU
+    print_result(rs);
+    #endif
     print_result(r2);
 
 #ifdef MPSPICE_MIXED_PRECISION_KLU
