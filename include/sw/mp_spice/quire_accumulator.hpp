@@ -31,31 +31,34 @@ struct quire_acc {
 
 } // namespace sw::mp_spice
 
-namespace mtl::sparse::factorization {
+namespace mtl::math {
 
 /// Specialize MTL5's accumulator seam for the posit quire. Products accumulate
 /// exactly into the quire; value() resolves (rounds) to a posit once, at the
 /// point the column entry is consumed -- giving single-rounding fused-dot-product
 /// semantics for the whole left-looking elimination of each column.
-template <typename P>
-struct accumulator_traits<sw::mp_spice::quire_acc<P>, P> {
+
+template<typename P>
+struct accumulator_traits<sw::mp_spice::quire_acc<P>, P>
+{
     using QA = sw::mp_spice::quire_acc<P>;
 
     static void clear(QA& a) { a.q.reset(); }
 
     static void assign(QA& a, const P& v) {
-        a.q.reset();
-        a.q += sw::universal::quire_mul(v, P(1));   // exact: v * 1
+         a.q.reset();
+         a.q += sw::universal::quire_mul(v, P(1));   // exact: v * 1
     }
 
-    static P value(const QA& a) {
-        sw::universal::quire<P> tmp(a.q);           // quire_resolve takes a mutable copy
-        return sw::universal::quire_resolve(tmp);
+    template <typename Result = P>
+    static Result value(const QA& a) {
+        sw::universal::quire<P> tmp(a.q);
+        return static_cast<Result>(sw::universal::quire_resolve(tmp));    // quire_resolve takes a mutable copy
     }
 
     static void add_product(QA& a, const P& m, const P& v) {
-        a.q += sw::universal::quire_mul(m, v);      // exact product, no rounding
+         a.q += sw::universal::quire_mul(m, v);      // exact product, no rounding
     }
 };
 
-} // namespace mtl::sparse::factorization
+} //namespace mtl::math
