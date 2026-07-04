@@ -36,9 +36,9 @@
 #include <mtl/mat/inserter.hpp>
 #include <mtl/vec/dense_vector.hpp>
 #include <mtl/io/matrix_market.hpp>
+#include "include/sw/mp_spice/quire_accumulator.hpp"
 #include <mtl/sparse/factorization/native_klu.hpp>
 #include "benchmarks/benchmark_result.hpp"
-#include "include/sw/mp_spice/quire_accumulator.hpp"
 
 #ifdef MPSPICE_MIXED_PRECISION_KLU
 #include <universal/number/cfloat/cfloat.hpp>
@@ -154,21 +154,6 @@ double forward_error_inf(const std::vector<double>& x,
 
 // Solve in type T and print a result row. A failed factorization (common for
 // low precision on stiff circuit matrices) is reported, not fatal.
-/*template <typename T>
-void run_row(const std::string& label, const Sparse& A,
-             const std::vector<double>& b, const std::vector<double>& exact) {
-    try {
-        auto x = solve_in<T>(A, b);
-        std::cout << "  " << std::left << std::setw(14) << label << std::right
-                  << "   " << std::setw(12) << std::scientific << std::setprecision(3)
-                  << residual_inf(A, x, b)
-                  << "   " << std::setw(12) << forward_error_inf(x, exact) << '\n';
-    } catch (const std::exception& e) {
-        std::cout << "  " << std::left << std::setw(14) << label
-                  << "   solve failed: " << e.what() << '\n';
-    }
-}*/
-
 template <typename T, typename Accumulator = T>
 BenchmarkResult run_row(
     const std::string& label,
