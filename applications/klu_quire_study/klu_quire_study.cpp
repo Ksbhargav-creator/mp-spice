@@ -7,15 +7,19 @@
 // accumulation loses.
 //
 // Uses MTL5's sparse_lu directly (single elimination, no BTF) to isolate the
-// accumulator's effect. Requires Universal + the MTL5 accumulator seam (#122);
-// build with -DMPSPICE_MIXED_PRECISION_KLU=ON (default ON).
+// accumulator's effect on a ONE-SHOT DIRECT SOLVE -- no iterative refinement.
+// For the native-KLU + iterative-refinement studies (factor-accumulator and
+// residual-accumulator, on large BTF-factorable matrices), see the companion
+// application klu_quire_IR_study.
 //
-// Usage: klu_quire_study [matrix.mtx] [--csv out.csv]
+// Requires Universal + the MTL5 accumulator seam (#122); build with
+// -DMPSPICE_MIXED_PRECISION_KLU=ON (default ON).
+//
+// Usage: klu_quire_study [matrix.mtx]
 // No matrix -> an ill-conditioned Hilbert-like system where the effect is clear.
 
 #include <cmath>
 #include <cstdio>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -27,7 +31,6 @@
 
 #include <universal/number/posit/posit.hpp>
 #include <sw/mp_spice/quire_accumulator.hpp>
-#include <sw/mp_spice/klu_study.hpp>
 
 namespace {
 
@@ -114,11 +117,8 @@ Result compare(const std::string& type, const Dbl& Ad) {
 } // namespace
 
 int main(int argc, char** argv) {
-    std::string mtx, csv;
-    for (int i = 1; i < argc; ++i) {
-        std::string a = argv[i];
-        if (a == "--csv" && i + 1 < argc) csv = argv[++i]; else mtx = a;
-    }
+    std::string mtx;
+    if (argc > 1) mtx = argv[1];
 
     Dbl A;
     if (!mtx.empty()) { std::printf("Loading %s\n", mtx.c_str()); A = mtl::io::mm_read<double>(mtx); }
@@ -128,13 +128,13 @@ int main(int argc, char** argv) {
 
     using namespace sw::universal;
 
-    // Part 1 -- direct sparse_lu (no BTF, single elimination) plain vs quire.
-    // This is an O(fill) dense-ish factorization done THREE times in slow posit
-    // arithmetic, so restrict it to small matrices; large circuit matrices use
-    // Part 2 (BTF native KLU) below.
+    // Direct sparse_lu (no BTF, single elimination) plain vs quire. This is an
+    // O(fill) dense-ish factorization done THREE times in slow posit arithmetic,
+    // so restrict it to small matrices; for large circuit matrices, use the
+    // companion klu_quire_IR_study (native KLU + BTF + iterative refinement).
     constexpr std::size_t kDirectMax = 256;
     if (A.num_rows() <= kDirectMax) {
-        std::vector<Result> rows = {
+        const std::vector<Result> direct_rows = {
             compare<posit<8, 2>>("posit<8,2>", A),
             compare<posit<16, 2>>("posit<16,2>", A),
             compare<posit<32, 2>>("posit<32,2>", A),
@@ -143,45 +143,15 @@ int main(int argc, char** argv) {
         std::printf("%-13s | %11s %11s | %11s %11s\n",
                     "type", "plain res", "plain ferr", "quire res", "quire ferr");
         std::printf("%s\n", std::string(66, '-').c_str());
-        for (const auto& r : rows) {
+        for (const auto& r : direct_rows) {
             if (r.ok) std::printf("%-13s | %11.3e %11.3e | %11.3e %11.3e\n",
                                   r.type.c_str(), r.plain_res, r.plain_ferr, r.quire_res, r.quire_ferr);
             else std::printf("%-13s | factorization failed\n", r.type.c_str());
         }
-        if (!csv.empty()) {
-            std::ofstream o(csv);
-            o << "type,plain_residual,plain_fwd_error,quire_residual,quire_fwd_error\n";
-            for (const auto& r : rows)
-                if (r.ok) o << r.type << ',' << r.plain_res << ',' << r.plain_ferr << ','
-                            << r.quire_res << ',' << r.quire_ferr << '\n';
-            std::printf("CSV: %s\n", csv.c_str());
-        }
     } else {
-        std::printf("Direct sparse-LU comparison skipped (n=%zu > %zu; use the "
-                    "BTF native-KLU + IR section below for large matrices).\n",
+        std::printf("Direct sparse-LU comparison skipped (n=%zu > %zu; use "
+                    "klu_quire_IR_study for large matrices).\n",
                     (size_t)A.num_rows(), kDirectMax);
     }
-
-    // --- Native KLU + mixed-precision iterative refinement: plain vs quire ---
-    // Factor in posit (full BTF KLU) and refine with a double residual. Does the
-    // exact per-block accumulator improve the IR result/convergence?
-    std::printf("\nNative KLU + double-residual iterative refinement (factor in posit):\n");
-    std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
-                "type", "plain res", "plain ferr", "it", "quire res", "quire ferr", "it");
-    std::printf("%s\n", std::string(74, '-').c_str());
-    std::vector<double> ones(A.num_rows(), 1.0);
-    auto b = sw::mp_spice::rhs_from_ones(A);
-    auto ir_row = [&](const std::string& type, auto tag) {
-        using P = decltype(tag);
-        auto plain = sw::mp_spice::mixed_refine<P>(A, b, ones);
-        auto quire = sw::mp_spice::mixed_refine<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
-        auto cell = [](const sw::mp_spice::solve_stats& s) {
-            if (s.ok) std::printf(" %11.3e %11.3e %5d", s.residual, s.fwd_error, s.iters);
-            else      std::printf(" %11s %11s %5s", "FAIL", "-", "-");
-        };
-        std::printf("%-13s |", type.c_str()); cell(plain); std::printf(" |"); cell(quire); std::printf("\n");
-    };
-    ir_row("posit<16,2>", posit<16, 2>{});
-    ir_row("posit<32,2>", posit<32, 2>{});
     return 0;
 }
