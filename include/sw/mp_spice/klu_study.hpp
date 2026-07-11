@@ -115,6 +115,24 @@ inline double norm_inf(const std::vector<double>& v) {
     return m;
 }
 
+/// ||M||_inf = max row sum of |M(i,j)|, computed directly from CSR storage
+/// (O(nnz), not a dense O(n^2) scan over every (i,j) pair) and always returned
+/// in double regardless of M's element type -- feeds the textbook convergence
+/// bound below.
+template <typename MatType>
+double matrix_inf_norm(const MatType& M) {
+    const auto& rp = M.ref_major();
+    const auto& dat = M.ref_data();
+    double result = 0.0;
+    for (std::size_t r = 0; r < M.num_rows(); ++r) {
+        double row_sum = 0.0;
+        for (std::size_t k = rp[r]; k < rp[r + 1]; ++k)
+            row_sum += std::abs(static_cast<double>(dat[k]));
+        result = std::max(result, row_sum);
+    }
+    return result;
+}
+
 /// Residual r = b - A*x formed with GENUINELY low-precision products: both the
 /// matrix `A` (already recast to `Value`, the same type the factorization runs
 /// in) and `x` are read at `Value` precision for every multiply, and only the
@@ -193,6 +211,8 @@ mtl::sparse::refine_result iterative_refine_accumulated_residual(
     };
 
     const double bnorm = norm_inf_vec(b);
+    const double Ainf = matrix_inf_norm(A);  // ||A||_inf, from the SAME (low-precision)
+                                              // matrix this function forms its residual from
     mtl::vec::dense_vector<double> r(n), dx(n, 0.0);
     mtl::vec::dense_vector<double> best_x = x;
     double best_rn = std::numeric_limits<double>::infinity();
@@ -207,8 +227,13 @@ mtl::sparse::refine_result iterative_refine_accumulated_residual(
         if (rn < best_rn) { best_rn = rn; best_x = x; stalls = 0; }
         else              { ++stalls; }
 
-        const double rel = (bnorm > 0.0) ? rn / bnorm : rn;
-        if (opt.rel_tol > 0.0 && rel <= opt.rel_tol) { res.converged = true; break; }
+        // ||r_i|| <= rel_tol * (||A||_inf*||x_i||_inf + ||b||_inf) -- see
+        // mtl::sparse::refine_options::rel_tol's doc comment (MTL5's core uses
+        // the identical criterion; this mirrors it here since this function
+        // deliberately reimplements the loop rather than calling into MTL5).
+        const double xn = norm_inf_vec(x);
+        const double bound = Ainf * xn + bnorm;
+        if (opt.rel_tol > 0.0 && rn <= opt.rel_tol * bound) { res.converged = true; break; }
         if (stalls >= patience) break;
 
         if (opt.scaled) {

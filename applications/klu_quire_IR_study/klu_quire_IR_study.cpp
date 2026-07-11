@@ -11,12 +11,17 @@
 //     1. Factor-accumulator IR: factor A in posit (plain vs quire), then
 //        refine with MTL5's generic DOUBLE-precision residual. Does an exact
 //        accumulator inside the factorization still matter once IR refines
-//        away its accumulation error?
+//        away its accumulation error? (residual/forward-error/iteration count
+//        only -- no accumulation-length instrumentation here; the LU
+//        factorization's own forward/backward/Schur accumulation lengths are
+//        a separate concern this app no longer tracks.)
 //     2. Residual-accumulator IR: factor A in posit (always plain), but form
 //        the REFINEMENT residual itself at posit precision, with either plain
 //        (round-every-add) or quire (exact, single-rounding) accumulation.
 //        This is the "make the residual genuinely mixed precision" question --
-//        see sw::mp_spice::mixed_refine_residual_accumulator.
+//        see sw::mp_spice::mixed_refine_residual_accumulator. Accumulation-
+//        length instrumentation (count/mean/median/max) is reported here only,
+//        via the residual accumulator's own residual_stats counter.
 //
 // Requires Universal + the MTL5 accumulator seam (#122); build with
 // -DMPSPICE_MIXED_PRECISION_KLU=ON (default ON).
@@ -26,7 +31,6 @@
 
 #include <cmath>
 #include <cstdio>
-#include <limits>
 #include <string>
 #include <vector>
 
@@ -57,35 +61,10 @@ Dbl dense_mixed(std::size_t n) {
     return A;
 }
 
-struct HistogramBucket {
-    std::size_t lower = 0;
-    std::size_t upper = 0;
-    std::size_t count = 0;
-};
-
-struct AccumulationSummary {
-    std::size_t count = 0;
-    double mean = 0;
-    double median = 0;
-    double maximum = 0;
-    std::vector<HistogramBucket> histogram;
-};
-
-struct AccumulationReport {
-    AccumulationSummary forward;
-    AccumulationSummary backward;
-    AccumulationSummary schur;
-};
-
-struct InstrumentedSolve {
-    sw::mp_spice::solve_stats stats;
-    AccumulationReport accumulation;
-};
-
-struct InstrumentedComparison {
+struct FactorComparison {
     std::string type;
-    InstrumentedSolve plain;
-    InstrumentedSolve quire;
+    sw::mp_spice::solve_stats plain;
+    sw::mp_spice::solve_stats quire;
 };
 
 struct ResidualComparison {
@@ -96,109 +75,6 @@ struct ResidualComparison {
     mtl::sparse::instrumentation::KernelStatistics::StatisticSummary standard_summary;
     mtl::sparse::instrumentation::KernelStatistics::StatisticSummary quire_summary;
 };
-
-std::vector<HistogramBucket> histogram(
-    const mtl::sparse::instrumentation::KernelStatistics& stats) {
-    const std::vector<HistogramBucket> bins = {
-        {0, 0, 0},
-        {1, 1, 0},
-        {2, 2, 0},
-        {3, 4, 0},
-        {5, 8, 0},
-        {9, 16, 0},
-        {17, 32, 0},
-        {33, 64, 0},
-        {65, 128, 0},
-        {129, 256, 0},
-        {257, std::numeric_limits<std::size_t>::max(), 0}
-    };
-
-    auto result = bins;
-    for (std::size_t value : stats.values()) {
-        for (auto& bin : result) {
-            if (value >= bin.lower && value <= bin.upper) {
-                ++bin.count;
-                break;
-            }
-        }
-    }
-    return result;
-}
-
-AccumulationSummary accumulation_summary(
-    const mtl::sparse::instrumentation::KernelStatistics& stats) {
-    const auto summary = stats.summary();
-    return {
-        summary.count,
-        summary.mean,
-        summary.median,
-        summary.maximum,
-        histogram(stats)
-    };
-}
-
-void reset_accumulation_stats() {
-    namespace instr = mtl::sparse::instrumentation;
-    instr::forward_stats.reset();
-    instr::backward_stats.reset();
-    instr::schur_stats.reset();
-}
-
-AccumulationReport accumulation_report() {
-    namespace instr = mtl::sparse::instrumentation;
-    return {
-        accumulation_summary(instr::forward_stats),
-        accumulation_summary(instr::backward_stats),
-        accumulation_summary(instr::schur_stats)
-    };
-}
-
-template <typename P, typename Accumulator = P>
-InstrumentedSolve run_instrumented_refinement(
-    const Dbl& A,
-    const std::vector<double>& b,
-    const std::vector<double>& exact) {
-    reset_accumulation_stats();
-    auto stats = sw::mp_spice::mixed_refine<P, Accumulator>(A, b, exact);
-    return {stats, accumulation_report()};
-}
-
-void print_accumulation_summary(
-    const char* name,
-    const AccumulationSummary& summary) {
-    std::printf("%s\n", name);
-    std::printf("Count:  %zu\n", summary.count);
-    std::printf("Mean:   %.3f\n", summary.mean);
-    std::printf("Median: %.3f\n", summary.median);
-    std::printf("Max:    %.3f\n\n", summary.maximum);
-    std::printf("Histogram:\n");
-    for (const auto& bin : summary.histogram) {
-        if (bin.count == 0)
-            continue;
-
-        if (bin.lower == bin.upper)
-            std::printf("  %zu:      %zu\n", bin.lower, bin.count);
-        else if (bin.upper == std::numeric_limits<std::size_t>::max())
-            std::printf("  >=%zu:    %zu\n", bin.lower, bin.count);
-        else
-            std::printf("  %zu-%zu:   %zu\n", bin.lower, bin.upper, bin.count);
-    }
-    std::printf("\n");
-}
-
-void print_accumulation_report(
-    const std::string& label,
-    const InstrumentedSolve& result) {
-    std::printf("\nAccumulation lengths (%s):\n", label.c_str());
-    if (!result.stats.ok) {
-        std::printf("Not available: solve failed.\n");
-        return;
-    }
-
-    print_accumulation_summary("Forward", result.accumulation.forward);
-    print_accumulation_summary("Backward", result.accumulation.backward);
-    print_accumulation_summary("Schur", result.accumulation.schur);
-}
 
 } // namespace
 
@@ -223,13 +99,13 @@ int main(int argc, char** argv) {
     std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
                 "type", "plain res", "plain ferr", "it", "quire res", "quire ferr", "it");
     std::printf("%s\n", std::string(74, '-').c_str());
-    auto ir_row = [&](const std::string& type, auto tag) -> InstrumentedComparison {
+    auto ir_row = [&](const std::string& type, auto tag) -> FactorComparison {
         using P = decltype(tag);
-        auto plain = run_instrumented_refinement<P>(A, b, ones);
-        auto quire = run_instrumented_refinement<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
+        auto plain = sw::mp_spice::mixed_refine<P>(A, b, ones);
+        auto quire = sw::mp_spice::mixed_refine<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
         return {type, plain, quire};
     };
-    const std::vector<InstrumentedComparison> ir_rows = {
+    const std::vector<FactorComparison> ir_rows = {
         ir_row("posit<16,2>", posit<16, 2>{}),
         ir_row("posit<32,2>", posit<32, 2>{})
     };
@@ -239,14 +115,10 @@ int main(int argc, char** argv) {
             else      std::printf(" %11s %11s %5s", "FAIL", "-", "-");
         };
         std::printf("%-13s |", row.type.c_str());
-        cell(row.plain.stats);
+        cell(row.plain);
         std::printf(" |");
-        cell(row.quire.stats);
+        cell(row.quire);
         std::printf("\n");
-    }
-    for (const auto& row : ir_rows) {
-        print_accumulation_report(row.type + " plain", row.plain);
-        print_accumulation_report(row.type + " quire", row.quire);
     }
 
     // --- 2. Residual-accumulator IR: factorization always plain; the residual
