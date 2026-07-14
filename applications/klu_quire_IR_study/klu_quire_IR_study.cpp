@@ -5,23 +5,33 @@
 //
 //   klu_quire_study     -- one-shot DIRECT solve, plain vs quire accumulator
 //                           INSIDE the factorization (MTL5 sparse_lu, no BTF).
-//   klu_quire_IR_study   -- native KLU (full BTF) + iterative refinement, two
-//                           independent questions:
+//   klu_quire_IR_study   -- native KLU (full BTF) + iterative refinement:
 //
-//     1. Factor-accumulator IR: factor A in posit (plain vs quire), then
-//        refine with MTL5's generic DOUBLE-precision residual. Does an exact
-//        accumulator inside the factorization still matter once IR refines
-//        away its accumulation error? (residual/forward-error/iteration count
-//        only -- no accumulation-length instrumentation here; the LU
-//        factorization's own forward/backward/Schur accumulation lengths are
-//        a separate concern this app no longer tracks.)
-//     2. Residual-accumulator IR: factor A in posit (always plain), but form
-//        the REFINEMENT residual itself at posit precision, with either plain
-//        (round-every-add) or quire (exact, single-rounding) accumulation.
-//        This is the "make the residual genuinely mixed precision" question --
-//        see sw::mp_spice::mixed_refine_residual_accumulator. Accumulation-
-//        length instrumentation (count/mean/median/max) is reported here only,
-//        via the residual accumulator's own residual_stats counter.
+//     Factor-accumulator IR: factor A in posit (plain vs quire), then refine
+//     with MTL5's generic DOUBLE-precision residual. Does an exact accumulator
+//     inside the factorization still matter once IR refines away its
+//     accumulation error? Routed through
+//     sw::mp_spice::mixed_refine_with_histogram (mathematically identical to
+//     mixed_refine, just instrumented) so each run also reports a
+//     product-magnitude histogram: the distribution (by order of magnitude)
+//     of every individual term `a_ij * x_j` formed while assembling the
+//     residual, looking for the two-cluster ("bimodal") signature of
+//     catastrophic cancellation. The LU factorization's own
+//     forward/backward/Schur accumulation lengths are a separate concern this
+//     app no longer tracks.
+//
+//     Working-precision residual (John's hypothesis, direct test): NO
+//     low-precision factorization at all -- factor once at Working precision
+//     (a posit stand-in for "64-bit", plain, never quire -- quire in the
+//     solver is a separate, already-answered question) and form the residual
+//     at that SAME Working precision, varying only whether the summation is
+//     plain or quire. Operands are never downcast further than Working, so
+//     this tests summation-order error in isolation, matching John's literal
+//     description ("a direct solver with 64-bit precision ... if you use the
+//     quire to compute the residual, that residual is computed to infinite
+//     precision until you round each entry of b-Ax to the working data
+//     type"). Routed through sw::mp_spice::working_precision_refine_with_histogram.
+//
 //
 // Requires Universal + the MTL5 accumulator seam (#122); build with
 // -DMPSPICE_MIXED_PRECISION_KLU=ON (default ON).
@@ -31,6 +41,8 @@
 
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -38,7 +50,6 @@
 #include <mtl/mat/inserter.hpp>
 #include <mtl/vec/dense_vector.hpp>
 #include <mtl/io/matrix_market.hpp>
-#include <mtl/sparse/instrumentation/kernel_stats.hpp>
 
 #include <universal/number/posit/posit.hpp>
 #include <sw/mp_spice/quire_accumulator.hpp>
@@ -65,16 +76,70 @@ struct FactorComparison {
     std::string type;
     sw::mp_spice::solve_stats plain;
     sw::mp_spice::solve_stats quire;
+    sw::mp_spice::ProductMagnitudeStats plain_hist;
+    sw::mp_spice::ProductMagnitudeStats quire_hist;
 };
 
-struct ResidualComparison {
-    std::string type;
-    sw::mp_spice::solve_stats standard;
-    sw::mp_spice::solve_stats quire;
+// ASCII bar chart of the product-magnitude distribution: one bar per decade
+// of |a_ij * x_j|.
+void print_magnitude_histogram(const std::string& label,
+                               const sw::mp_spice::ProductMagnitudeStats& stats) {
+    std::printf("\nProduct magnitude distribution (%s):\n", label.c_str());
+    if (stats.total() == 0) {
+        std::printf("  (no products recorded -- solve may have failed)\n");
+        return;
+    }
+    std::printf("  %zu products recorded, %zu exact zeros\n", stats.total(), stats.zero_count());
+    std::size_t max_count = 0;
+    for (const auto& bucket : stats.buckets()) max_count = std::max(max_count, bucket.second);
+    for (const auto& bucket : stats.buckets()) {
+        int decade = bucket.first;
+        std::size_t count = bucket.second;
+        int bar_len = (max_count > 0)
+            ? static_cast<int>(50.0 * static_cast<double>(count) / static_cast<double>(max_count))
+            : 0;
+        std::printf("  1e%-4d [%7zu] %s\n", decade, count, std::string(bar_len, '#').c_str());
+    }
+}
 
-    mtl::sparse::instrumentation::KernelStatistics::StatisticSummary standard_summary;
-    mtl::sparse::instrumentation::KernelStatistics::StatisticSummary quire_summary;
-};
+// Bare filename, extension stripped -- "dense_mixed" if no matrix was loaded.
+// Matches the "Matrix" column convention already used by csv/lu_accumulation.csv
+// etc. (from the mixed-precision-klu-study.md write-up).
+std::string matrix_name_from_path(const std::string& mtx) {
+    if (mtx.empty()) return "dense_mixed";
+    return std::filesystem::path(mtx).stem().string();
+}
+
+// Appends the product-magnitude histogram (all rows, all refinement
+// iterations, pooled -- see the ProductMagnitudeStats docs in klu_study.hpp
+// for why it's pooled rather than per-row) to csv/product_magnitude_histogram.csv,
+// following the existing project convention (Matrix,n,Type,... header; see
+// csv/lu_accumulation.csv, csv/residual_accumulation.csv). One row per
+// non-empty decade bucket; ZeroCount/Total repeated on every row of that
+// group so the file stays fully rectangular for pandas.
+//
+// `experiment` disambiguates which accumulator `variant` (Plain/Quire) refers
+// to -- the two tables in this app vary DIFFERENT accumulators under the same
+// Plain/Quire label:
+//   "FactorAccumulatorIR"        -- variant is the LU FACTORIZATION's
+//                                   accumulator; the residual is always
+//                                   plain double, unaffected by variant.
+//   "WorkingPrecisionResidualIR" -- variant is the RESIDUAL's accumulator;
+//                                   the factorization is always plain,
+//                                   unaffected by variant.
+void write_histogram_csv(std::ofstream& out,
+                         const std::string& matrix_name,
+                         std::size_t n,
+                         const std::string& experiment,
+                         const std::string& type,
+                         const std::string& variant,
+                         const sw::mp_spice::ProductMagnitudeStats& stats) {
+    for (const auto& bucket : stats.buckets()) {
+        out << matrix_name << ',' << n << ',' << experiment << ",\"" << type << "\","
+            << variant << ',' << bucket.first << ',' << bucket.second << ','
+            << stats.zero_count() << ',' << stats.total() << '\n';
+    }
+}
 
 } // namespace
 
@@ -101,9 +166,16 @@ int main(int argc, char** argv) {
     std::printf("%s\n", std::string(74, '-').c_str());
     auto ir_row = [&](const std::string& type, auto tag) -> FactorComparison {
         using P = decltype(tag);
-        auto plain = sw::mp_spice::mixed_refine<P>(A, b, ones);
-        auto quire = sw::mp_spice::mixed_refine<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
-        return {type, plain, quire};
+
+        sw::mp_spice::product_magnitude_stats.reset();
+        auto plain = sw::mp_spice::mixed_refine_with_histogram<P>(A, b, ones);
+        auto plain_hist = sw::mp_spice::product_magnitude_stats;
+
+        sw::mp_spice::product_magnitude_stats.reset();
+        auto quire = sw::mp_spice::mixed_refine_with_histogram<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
+        auto quire_hist = sw::mp_spice::product_magnitude_stats;
+
+        return {type, plain, quire, plain_hist, quire_hist};
     };
     const std::vector<FactorComparison> ir_rows = {
         ir_row("posit<16,2>", posit<16, 2>{}),
@@ -120,58 +192,81 @@ int main(int argc, char** argv) {
         cell(row.quire);
         std::printf("\n");
     }
+    for (const auto& row : ir_rows) {
+        print_magnitude_histogram(row.type + " plain factorization", row.plain_hist);
+        print_magnitude_histogram(row.type + " quire factorization", row.quire_hist);
+    }
 
-    // --- 2. Residual-accumulator IR: factorization always plain; the residual
-    //        r = b - A*x now runs its A*x products at the SAME low precision P
-    //        the factorization uses, with plain (round-every-add) vs quire
-    //        (exact, single-rounding) accumulation. ---
-    std::printf("\nNative KLU IR residual accumulation (plain factorization):\n");
+    // --- 2. Working-precision residual: plain vs quire summation, direct
+    //        test of John's hypothesis. Factorization is ALWAYS plain, at the
+    //        SAME Working precision as the residual -- see
+    //        sw::mp_spice::working_precision_refine_with_histogram's docs for
+    //        why this (and not table 1, and not the removed
+    //        mixed_refine_residual_accumulator) is the one that actually
+    //        matches what John described. ---
+    std::printf("\nWorking-precision residual: plain vs quire summation (John's hypothesis):\n");
     std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
-                "type", "std res", "std ferr", "it", "quire res", "quire ferr", "it");
+                "type", "plain res", "plain ferr", "it", "quire res", "quire ferr", "it");
     std::printf("%s\n", std::string(74, '-').c_str());
+    auto wp_row = [&](const std::string& type, auto tag) -> FactorComparison {
+        using Working = decltype(tag);
 
-    auto residual_row = [&](const std::string& type, auto tag) -> ResidualComparison {
-        using P = decltype(tag);
+        sw::mp_spice::product_magnitude_stats.reset();
+        auto plain = sw::mp_spice::working_precision_refine_with_histogram<Working>(A, b, ones);
+        auto plain_hist = sw::mp_spice::product_magnitude_stats;
 
-        residual_stats.reset();
-        auto standard = sw::mp_spice::mixed_refine_residual_accumulator<P, P, P>(
-            A, b, ones);
-        auto standard_summary = residual_stats.summary();
+        sw::mp_spice::product_magnitude_stats.reset();
+        auto quire = sw::mp_spice::working_precision_refine_with_histogram<
+            Working, sw::mp_spice::quire_acc<Working>>(A, b, ones);
+        auto quire_hist = sw::mp_spice::product_magnitude_stats;
 
-        residual_stats.reset();
-        auto quire = sw::mp_spice::mixed_refine_residual_accumulator<
-            P, P, sw::mp_spice::quire_acc<P>>(A, b, ones);
-        auto quire_summary = residual_stats.summary();
-
-        return {type, standard, quire, standard_summary, quire_summary};
+        return {type, plain, quire, plain_hist, quire_hist};
     };
-    const std::vector<ResidualComparison> residual_rows = {
-        residual_row("posit<16,2>", posit<16, 2>{}),
-        residual_row("posit<32,2>", posit<32, 2>{})
+    const std::vector<FactorComparison> wp_rows = {
+        wp_row("posit<32,2>", posit<32, 2>{}),
+        wp_row("posit<64,3>", posit<64, 3>{})
     };
-    for (const auto& row : residual_rows) {
+    for (const auto& row : wp_rows) {
         auto cell = [](const sw::mp_spice::solve_stats& s) {
             if (s.ok) std::printf(" %11.3e %11.3e %5d", s.residual, s.fwd_error, s.iters);
             else      std::printf(" %11s %11s %5s", "FAIL", "-", "-");
         };
         std::printf("%-13s |", row.type.c_str());
-        cell(row.standard);
+        cell(row.plain);
         std::printf(" |");
         cell(row.quire);
         std::printf("\n");
+    }
+    for (const auto& row : wp_rows) {
+        print_magnitude_histogram(row.type + " plain residual", row.plain_hist);
+        print_magnitude_histogram(row.type + " quire residual", row.quire_hist);
+    }
 
-        auto print_summary = [](const char* name,
-                                const mtl::sparse::instrumentation::KernelStatistics::StatisticSummary& s)
-        {
-            std::printf("%s\n", name);
-            std::printf("Count:  %zu\n", s.count);
-            std::printf("Mean:   %.3f\n", s.mean);
-            std::printf("Median: %.3f\n", s.median);
-            std::printf("Max:    %.3f\n\n", s.maximum);
-        };
-
-        print_summary("Standard residual accumulation", row.standard_summary);
-        print_summary("Quire residual accumulation", row.quire_summary);
+    // CSV export (csv/product_magnitude_histogram.csv, matching the existing
+    // project convention -- see csv/lu_accumulation.csv etc.).
+    const std::string matrix_name = matrix_name_from_path(mtx);
+    std::filesystem::create_directories("csv");
+    const std::string csv_path = "csv/product_magnitude_histogram.csv";
+    const bool csv_exists = std::filesystem::exists(csv_path);
+    std::ofstream csv_out(csv_path, std::ios::app);
+    if (!csv_out) {
+        std::fprintf(stderr, "warning: could not open %s for writing\n", csv_path.c_str());
+    } else {
+        if (!csv_exists)
+            csv_out << "Matrix,n,Experiment,Type,Variant,Decade,Count,ZeroCount,Total\n";
+        for (const auto& row : ir_rows) {
+            write_histogram_csv(csv_out, matrix_name, A.num_rows(), "FactorAccumulatorIR",
+                                row.type, "Plain", row.plain_hist);
+            write_histogram_csv(csv_out, matrix_name, A.num_rows(), "FactorAccumulatorIR",
+                                row.type, "Quire", row.quire_hist);
+        }
+        for (const auto& row : wp_rows) {
+            write_histogram_csv(csv_out, matrix_name, A.num_rows(), "WorkingPrecisionResidualIR",
+                                row.type, "Plain", row.plain_hist);
+            write_histogram_csv(csv_out, matrix_name, A.num_rows(), "WorkingPrecisionResidualIR",
+                                row.type, "Quire", row.quire_hist);
+        }
+        std::printf("\nWrote %s\n", csv_path.c_str());
     }
     return 0;
 }

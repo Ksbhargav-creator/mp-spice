@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -28,6 +29,31 @@
 inline mtl::sparse::instrumentation::KernelStatistics residual_stats;
 
 namespace sw::mp_spice {
+
+/// Bucketed by decade (floor(log10(|value|))) rather than linearly, since
+/// product magnitudes in a circuit matrix's residual can span many orders of
+/// magnitude in a single row. Exact zeros are tracked separately (log10(0) is
+/// undefined, and an exact zero product carries no cancellation information).
+class ProductMagnitudeStats {
+public:
+    void record(double value) {
+        if (value == 0.0) { ++zero_count_; return; }
+        int decade = static_cast<int>(std::floor(std::log10(std::abs(value))));
+        ++buckets_[decade];
+        ++total_;
+    }
+    void reset() { buckets_.clear(); zero_count_ = 0; total_ = 0; }
+    const std::map<int, std::size_t>& buckets() const { return buckets_; }
+    std::size_t zero_count() const { return zero_count_; }
+    std::size_t total() const { return total_; }
+
+private:
+    std::map<int, std::size_t> buckets_;  ///< decade -> count, sorted by decade
+    std::size_t zero_count_ = 0;
+    std::size_t total_ = 0;
+};
+
+inline ProductMagnitudeStats product_magnitude_stats;
 
 using DSparse = mtl::mat::compressed2D<double>;
 
@@ -147,6 +173,15 @@ double matrix_inf_norm(const MatType& M) {
 /// (single-rounding fused dot product), the choice now actually changes what
 /// gets computed.
 ///
+/// Also records every product term `a_ij * x_j` into `product_magnitude_stats`
+/// (by order of magnitude, see that class's docs) and every row's term count
+/// into `residual_stats` -- callers wanting a clean sample should `reset()`
+/// both before the call they care about. This works for ANY `Value`,
+/// including plain `double` (the default `accumulator_traits<double,double>`
+/// specialization is a zero-overhead identity, so `Value=double,
+/// ResidualAccumulator=double` reproduces MTL5's own double-residual
+/// arithmetic exactly, with the instrumentation as a side effect).
+///
 /// `Value` names the operand/element type the same way MTL5's own accumulator
 /// seam does (`accumulator_traits<Acc, Value>`, and every `Accumulator = Value`
 /// default in sparse_lu.hpp/native_klu.hpp/triangular_solve.hpp) -- there's no
@@ -168,7 +203,9 @@ void residual_with_accumulator(const mtl::mat::compressed2D<Value>& A,
         AT::clear(acc);
         std::size_t accum_len = 0;
         for (std::size_t k = rp[i]; k < rp[i + 1]; ++k) {
-            AT::add_product(acc, dat[k], static_cast<Value>(x(static_cast<int>(ci[k]))));
+            const Value xv = static_cast<Value>(x(static_cast<int>(ci[k])));
+            product_magnitude_stats.record(static_cast<double>(dat[k] * xv));
+            AT::add_product(acc, dat[k], xv);
             ++accum_len;
         }
 
@@ -364,37 +401,33 @@ solve_stats mixed_refine(const DSparse& A,
     return s;
 }
 
-/// Mixed-precision iterative refinement with a caller-selected residual
-/// accumulator -- the genuinely mixed-precision counterpart to `mixed_refine`.
+/// Same question as `mixed_refine` (factor once in low precision T, refine
+/// with a DOUBLE-precision residual) -- but routed through
+/// `iterative_refine_accumulated_residual<double, double>` over the ORIGINAL
+/// double matrix, instead of MTL5's generic core, so
+/// `residual_with_accumulator`'s instrumentation (`product_magnitude_stats`,
+/// `residual_stats`) records every term of every residual dot product formed
+/// during the run.
 ///
-/// `mixed_refine` forms its residual entirely in double via MTL5's generic core:
-/// cheap low-precision factor, expensive double residual. This variant instead
-/// forms the residual from the SAME low-precision matrix `T` the factorization
-/// uses, so the A*x products genuinely run at `T` precision, and relies on
-/// `ResidualAccumulator` to recover accuracy: `ResidualAccumulator = T` (the
-/// default) is the pessimistic low-precision-everywhere baseline;
-/// `ResidualAccumulator = quire_acc<T>` tests whether an exact (single-rounding)
-/// accumulation over `T`-precision products can match the double-residual result
-/// without ever materializing a double product.
+/// Mathematically identical to `mixed_refine`: `Value=double,
+/// ResidualAccumulator=double` is the default `accumulator_traits<double,
+/// double>` identity specialization (`a += m*v`, zero overhead) -- the exact
+/// same plain-double arithmetic MTL5's own `iterative_refine<double>` loop
+/// performs. This function exists purely to expose the histogram hook without
+/// adding research-specific instrumentation to MTL5's clean generic core (the
+/// same reasoning `iterative_refine_accumulated_residual` itself documents).
 ///
-/// `FactorAccumulator` independently controls the LU factor/solve accumulator
-/// (as in `mixed_refine`); it need not match `ResidualAccumulator`.
-///
-/// `mu` applies Algorithm 4 (see `mixed_refine`): A and b are scaled by `mu`
-/// before rounding to T, for both the factorization and the residual's A*x
-/// products (both now run at T precision -- see `residual_with_accumulator`).
-/// Default mu=1.0 leaves behavior unchanged; reported residual/forward-error
-/// are always against the original (unscaled) A and b.
-template <typename T,
-          typename FactorAccumulator = T,
-          typename ResidualAccumulator = T>
-solve_stats mixed_refine_residual_accumulator(const DSparse& A,
-                                              const std::vector<double>& b,
-                                              const std::vector<double>& exact,
-                                              int max_iter = 30,
-                                              double tol = 1e-14,
-                                              bool scaled = false,
-                                              double mu = 1.0) {
+/// Caller should `product_magnitude_stats.reset()` (and `residual_stats.reset()`
+/// if the accumulation-length summary is also wanted) before calling, then read
+/// the stats back out afterward -- they accumulate across every iteration of
+/// the run, not just one snapshot.
+template <typename T, typename FactorAccumulator = T>
+solve_stats mixed_refine_with_histogram(const DSparse& A,
+                                        const std::vector<double>& b,
+                                        const std::vector<double>& exact,
+                                        int max_iter = 30,
+                                        double tol = 1e-14,
+                                        double mu = 1.0) {
     solve_stats s;
     try {
         const std::size_t n = A.num_rows();
@@ -404,9 +437,9 @@ solve_stats mixed_refine_residual_accumulator(const DSparse& A,
         const DSparse& Ause = scale ? Ascaled : A;
         const std::vector<double>& buse = scale ? bscaled : b;
 
-        auto AT = recast<T>(Ause);  // low-precision matrix -- shared by factorization AND residual
+        auto AT = recast<T>(Ause);
         auto fac = mtl::sparse::factorization::native_klu_factor<
-            T, mtl::mat::parameters<>, FactorAccumulator>(AT);
+            T, mtl::mat::parameters<>, FactorAccumulator>(AT);          // factor once in T
 
         mtl::vec::dense_vector<double> bv(n), xv(n, 0.0);
         for (std::size_t i = 0; i < n; ++i) bv(static_cast<int>(i)) = buse[i];
@@ -414,9 +447,76 @@ solve_stats mixed_refine_residual_accumulator(const DSparse& A,
         mtl::sparse::refine_options opt;
         opt.max_iter = max_iter;
         opt.rel_tol  = tol;
-        opt.scaled   = scaled;
-        auto rr = iterative_refine_accumulated_residual<T, ResidualAccumulator>(
-            AT, fac, bv, xv, opt);
+        // Value=double over the ORIGINAL matrix -- same "double residual"
+        // question as mixed_refine, routed through the instrumented path.
+        auto rr = iterative_refine_accumulated_residual<double, double>(Ause, fac, bv, xv, opt);
+
+        std::vector<double> x(n);
+        for (std::size_t i = 0; i < n; ++i) x[i] = xv(static_cast<int>(i));
+        s.iters = rr.iters;
+        s.residual = residual_inf(A, x, b);
+        s.fwd_error = forward_error_inf(x, exact);
+        s.ok = true;
+    } catch (const std::exception& e) { s.error = e.what(); }
+    return s;
+}
+
+/// Direct test of John's hypothesis (see docs/roadmap.md, "does quire's
+/// residual help barely stable circuits?"). His words: "If you use a 'direct'
+/// solver with 64-bit precision, IR will not help ... if you use 64-bit
+/// floats to compute the residual. But if you use the quire to compute the
+/// residual, that residual is computed to infinite precision (until you round
+/// each entry of b-Ax to the working data type)."
+///
+/// That describes a DIFFERENT experiment than every other function in this
+/// file: there is no low-precision factorization here at all. Both the
+/// factorization and the residual run at the SAME `Working` precision (a
+/// stand-in for "64-bit" -- Universal's quire is posit-specific, so there is
+/// no way to quire-sum literal IEEE double; `posit<64,3>` or wider is the
+/// closest available match). The factorization is ALWAYS plain (quire never
+/// goes in the solver -- John: "quire in the solver is not as important as
+/// using it for IR"). The ONLY thing that varies is `ResidualAccumulator`:
+/// `Working` (plain, ordinary round-every-add) vs `quire_acc<Working>`
+/// (exact, single-rounding). Operands are NEVER downcast further than
+/// `Working` -- unlike `mixed_refine_residual_accumulator` (removed; forced
+/// the residual down to a genuinely LOW precision T, which is a different,
+/// harsher question this project moved away from), this keeps the "computed
+/// to infinite precision until rounded to the working data type" framing
+/// intact: the only source of error being tested is summation order, never
+/// representation.
+template <typename Working, typename ResidualAccumulator = Working>
+solve_stats working_precision_refine_with_histogram(const DSparse& A,
+                                                     const std::vector<double>& b,
+                                                     const std::vector<double>& exact,
+                                                     int max_iter = 30,
+                                                     double tol = 1e-14,
+                                                     double mu = 1.0) {
+    solve_stats s;
+    try {
+        const std::size_t n = A.num_rows();
+        const bool scale = (mu != 1.0);
+        const DSparse Ascaled = scale ? scale_matrix(A, mu) : DSparse{};
+        const std::vector<double> bscaled = scale ? scale_rhs(b, mu) : std::vector<double>{};
+        const DSparse& Ause = scale ? Ascaled : A;
+        const std::vector<double>& buse = scale ? bscaled : b;
+
+        auto AW = recast<Working>(Ause);
+        // Factorization is ALWAYS plain at Working precision -- quire never
+        // goes here; this is not the axis under test.
+        auto fac = mtl::sparse::factorization::native_klu_factor<
+            Working, mtl::mat::parameters<>, Working>(AW);
+
+        mtl::vec::dense_vector<double> bv(n), xv(n, 0.0);
+        for (std::size_t i = 0; i < n; ++i) bv(static_cast<int>(i)) = buse[i];
+
+        mtl::sparse::refine_options opt;
+        opt.max_iter = max_iter;
+        opt.rel_tol  = tol;
+        // Residual formed at Working precision -- the SAME precision as the
+        // factorization, never downcast further. ResidualAccumulator (plain
+        // vs quire_acc<Working>) is the only thing this function varies.
+        auto rr = iterative_refine_accumulated_residual<Working, ResidualAccumulator>(
+            AW, fac, bv, xv, opt);
 
         std::vector<double> x(n);
         for (std::size_t i = 0; i < n; ++i) x[i] = xv(static_cast<int>(i));
