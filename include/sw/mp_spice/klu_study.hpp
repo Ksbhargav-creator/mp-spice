@@ -32,8 +32,7 @@ namespace sw::mp_spice {
 
 /// Bucketed by decade (floor(log10(|value|))) rather than linearly, since
 /// product magnitudes in a circuit matrix's residual can span many orders of
-/// magnitude in a single row. Exact zeros are tracked separately (log10(0) is
-/// undefined, and an exact zero product carries no cancellation information).
+/// magnitude in a single row. Exact zeros are tracked separately.
 class ProductMagnitudeStats {
 public:
     void record(double value) {
@@ -81,11 +80,9 @@ mtl::mat::compressed2D<T> recast(const DSparse& A) {
     return M;
 }
 
-/// Scale every entry of A by a scalar mu (Quinlan & Omtzigt, "Iterative
-/// Refinement with Low-Precision Posits," Algorithm 4: "Scale matrix entries,
-/// then round to low-precision"). mu*A*x = mu*b has the SAME solution x as
+/// Scale every entry of A by a scalar mu. mu*A*x = mu*b has the same solution x as
 /// A*x = b, so this changes nothing mathematically -- what it changes is the
-/// ROUNDING ERROR `recast<T>` incurs: posits (like every floating format) carry
+/// rounding error `recast<T>` incurs: posits (like every floating format) carry
 /// their best relative precision near magnitude 1 and taper off toward the
 /// extremes of their dynamic range, so choosing mu to pull A's entries toward
 /// O(1) before casting to T reduces the per-entry error introduced by the cast,
@@ -103,8 +100,7 @@ inline DSparse scale_matrix(const DSparse& A, double mu) {
     return S;
 }
 
-/// Scale b by the same mu used on A (Algorithm 4 requires both, "to preserve
-/// the equality of the system after scaling the matrix").
+/// Scale b by the same mu used on A.
 inline std::vector<double> scale_rhs(const std::vector<double>& b, double mu) {
     std::vector<double> bs(b.size());
     for (std::size_t i = 0; i < b.size(); ++i) bs[i] = mu * b[i];
@@ -159,23 +155,12 @@ double matrix_inf_norm(const MatType& M) {
     return result;
 }
 
-/// Residual r = b - A*x formed with GENUINELY low-precision products: both the
-/// matrix `A` (already recast to `Value`, the same type the factorization runs
-/// in) and `x` are read at `Value` precision for every multiply, and only the
-/// *accumulation* runs at `ResidualAccumulator` precision. This is what makes
-/// the residual mixed precision -- the bulk of the work (one product per
-/// nonzero) happens in the low-precision type; only the summation gets the
-/// wider/exact treatment. The earlier version of this function took the
-/// double-precision matrix and upcast everything to `Value` (or left it at
-/// `double`), so the accumulator never saw a genuinely low-precision product to
-/// compensate for -- with `ResidualAccumulator = Value` (the pessimistic
-/// low-precision-everywhere baseline) or `ResidualAccumulator = quire_acc<Value>`
-/// (single-rounding fused dot product), the choice now actually changes what
-/// gets computed.
+/// Residual r = b - A*x formed with low-precision products: both the
+/// matrix `A` and `x` are read at `Value` precision for every multiply, and only the
+/// *accumulation* runs at `ResidualAccumulator` precision.
 ///
-/// Also records every product term `a_ij * x_j` into `product_magnitude_stats`
-/// (by order of magnitude, see that class's docs) and every row's term count
-/// into `residual_stats` -- callers wanting a clean sample should `reset()`
+/// Also records every product term `a_ij * x_j` into `product_magnitude_stats`and every 
+/// row's term count into `residual_stats` -- callers wanting a clean sample should `reset()`
 /// both before the call they care about. This works for ANY `Value`,
 /// including plain `double` (the default `accumulator_traits<double,double>`
 /// specialization is a zero-overhead identity, so `Value=double,
@@ -217,14 +202,6 @@ void residual_with_accumulator(const mtl::mat::compressed2D<Value>& A,
 }
 
 /// Iterative refinement with an mp-spice-selected residual accumulator.
-///
-/// This intentionally lives in mp-spice rather than MTL5 so the sparse LU
-/// implementation and the generic MTL5 refinement API remain unchanged. Only
-/// the residual formation `r = b - A*x` is replaced by the accumulator policy --
-/// and, unlike MTL5's generic (double-only) `iterative_refine` core, `A` here is
-/// the matrix already recast to `Value` (the same low precision the
-/// factorization itself runs in), so the residual's A*x products are genuinely
-/// low precision and the accumulator is doing real compensating work.
 template <typename Value,
           typename ResidualAccumulator = Value,
           typename Factorization>
@@ -301,12 +278,6 @@ mtl::sparse::refine_result iterative_refine_accumulated_residual(
 /// Direct solve of A x = b entirely in arithmetic type T (native KLU). The
 /// optional `Accumulator` selects the per-block accumulator policy (default:
 /// ordinary T arithmetic; pass e.g. a posit quire for an exact fused dot product).
-///
-/// `mu` applies Algorithm 4 (Quinlan & Omtzigt): A and b are scaled by `mu`
-/// before rounding to T (default mu=1.0 -- no scaling, unchanged behavior).
-/// Since mu*A*x = mu*b has the same solution x as A*x = b, the reported
-/// residual/forward-error are always computed against the ORIGINAL (unscaled)
-/// A and b, so results are comparable across mu.
 template <typename T, typename Accumulator = T>
 solve_stats direct_solve(const DSparse& A,
                          const std::vector<double>& b,
@@ -349,18 +320,6 @@ solve_stats direct_solve(const DSparse& A,
 /// Note: `iters` counts every correction step including the initial solve (x
 /// starts at zero), and the core returns the best iterate, stopping once the
 /// residual stops improving.
-///
-/// `mu` applies Algorithm 4 (Quinlan & Omtzigt, "Iterative Refinement with
-/// Low-Precision Posits"): "scale matrix entries, then round to low-precision."
-/// A and b are scaled by `mu` before the factorization's recast to T AND before
-/// every double-precision residual evaluation in the refinement loop -- the
-/// paper's text is explicit that "[a]fter scaling and rounding the matrix,
-/// Algorithm 2 [mixed-precision IR] will be applied," i.e. scaling is a
-/// pre-processing step, not a change to the refinement algorithm itself.
-/// Default mu=1.0 leaves behavior unchanged. Since mu*A*x = mu*b has the same
-/// solution x as A*x = b, the reported residual/forward-error are always
-/// computed against the ORIGINAL (unscaled) A and b, so results stay
-/// comparable across different mu.
 template <typename T, typename Accumulator = T>
 solve_stats mixed_refine(const DSparse& A,
                          const std::vector<double>& b,
@@ -461,29 +420,7 @@ solve_stats mixed_refine_with_histogram(const DSparse& A,
     return s;
 }
 
-/// Direct test of John's hypothesis (see docs/roadmap.md, "does quire's
-/// residual help barely stable circuits?"). His words: "If you use a 'direct'
-/// solver with 64-bit precision, IR will not help ... if you use 64-bit
-/// floats to compute the residual. But if you use the quire to compute the
-/// residual, that residual is computed to infinite precision (until you round
-/// each entry of b-Ax to the working data type)."
-///
-/// That describes a DIFFERENT experiment than every other function in this
-/// file: there is no low-precision factorization here at all. Both the
-/// factorization and the residual run at the SAME `Working` precision (a
-/// stand-in for "64-bit" -- Universal's quire is posit-specific, so there is
-/// no way to quire-sum literal IEEE double; `posit<64,3>` or wider is the
-/// closest available match). The factorization is ALWAYS plain (quire never
-/// goes in the solver -- John: "quire in the solver is not as important as
-/// using it for IR"). The ONLY thing that varies is `ResidualAccumulator`:
-/// `Working` (plain, ordinary round-every-add) vs `quire_acc<Working>`
-/// (exact, single-rounding). Operands are NEVER downcast further than
-/// `Working` -- unlike `mixed_refine_residual_accumulator` (removed; forced
-/// the residual down to a genuinely LOW precision T, which is a different,
-/// harsher question this project moved away from), this keeps the "computed
-/// to infinite precision until rounded to the working data type" framing
-/// intact: the only source of error being tested is summation order, never
-/// representation.
+
 template <typename Working, typename ResidualAccumulator = Working>
 solve_stats working_precision_refine_with_histogram(const DSparse& A,
                                                      const std::vector<double>& b,
@@ -528,13 +465,7 @@ solve_stats working_precision_refine_with_histogram(const DSparse& A,
     return s;
 }
 
-/// Scaled mixed-precision iterative refinement (see `mixed_refine`, `scaled=true`):
-/// each residual is normalized to O(1) before the low-precision correction solve
-/// and its magnitude restored in double, rescuing narrow-exponent factor types.
-/// Not to be confused with `mu` (Algorithm 4's matrix scaling, passed through
-/// unchanged here) -- that scales A/b once before rounding; this scales each
-/// residual's magnitude every refinement step. The two are independent and
-/// composable.
+
 template <typename T, typename Accumulator = T>
 solve_stats mixed_refine_scaled(const DSparse& A,
                                 const std::vector<double>& b,
