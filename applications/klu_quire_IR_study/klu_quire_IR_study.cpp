@@ -111,22 +111,10 @@ std::string matrix_name_from_path(const std::string& mtx) {
 }
 
 // Appends the product-magnitude histogram (all rows, all refinement
-// iterations, pooled -- see the ProductMagnitudeStats docs in klu_study.hpp
-// for why it's pooled rather than per-row) to csv/product_magnitude_histogram.csv,
-// following the existing project convention (Matrix,n,Type,... header; see
-// csv/lu_accumulation.csv, csv/residual_accumulation.csv). One row per
+// iterations, pooled to csv/product_magnitude_histogram.csv,
+// following the existing project convention (Matrix,n,Type,... header). One row per
 // non-empty decade bucket; ZeroCount/Total repeated on every row of that
 // group so the file stays fully rectangular for pandas.
-//
-// `experiment` disambiguates which accumulator `variant` (Plain/Quire) refers
-// to -- the two tables in this app vary DIFFERENT accumulators under the same
-// Plain/Quire label:
-//   "FactorAccumulatorIR"        -- variant is the LU FACTORIZATION's
-//                                   accumulator; the residual is always
-//                                   plain double, unaffected by variant.
-//   "WorkingPrecisionResidualIR" -- variant is the RESIDUAL's accumulator;
-//                                   the factorization is always plain,
-//                                   unaffected by variant.
 void write_histogram_csv(std::ofstream& out,
                          const std::string& matrix_name,
                          std::size_t n,
@@ -197,13 +185,9 @@ int main(int argc, char** argv) {
         print_magnitude_histogram(row.type + " quire factorization", row.quire_hist);
     }
 
-    // --- 2. Working-precision residual: plain vs quire summation, direct
-    //        test of John's hypothesis. Factorization is ALWAYS plain, at the
-    //        SAME Working precision as the residual -- see
-    //        sw::mp_spice::working_precision_refine_with_histogram's docs for
-    //        why this (and not table 1, and not the removed
-    //        mixed_refine_residual_accumulator) is the one that actually
-    //        matches what John described. ---
+    // --- 2. Working-precision residual: plain vs quire summation.
+    //        Factorization is ALWAYS plain, at the
+    //        same working precision as the residual
     std::printf("\nWorking-precision residual: plain vs quire summation (John's hypothesis):\n");
     std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
                 "type", "plain res", "plain ferr", "it", "quire res", "quire ferr", "it");
