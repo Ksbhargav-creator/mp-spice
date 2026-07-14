@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
     // --- 2. Working-precision residual: plain vs quire summation.
     //        Factorization is ALWAYS plain, at the
     //        same working precision as the residual
-    std::printf("\nWorking-precision residual: plain vs quire summation (John's hypothesis):\n");
+    std::printf("\nWorking-precision residual: plain vs quire summation:\n");
     std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
                 "type", "plain res", "plain ferr", "it", "quire res", "quire ferr", "it");
     std::printf("%s\n", std::string(74, '-').c_str());
