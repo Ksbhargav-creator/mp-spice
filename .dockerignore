@@ -1,0 +1,9 @@
+build/
+data/
+csv/
+.idea/
+.gitignore
+build.log
+AGENTS.md
+docs/learning-trail.md
+
