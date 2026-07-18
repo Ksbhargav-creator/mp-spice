@@ -54,6 +54,67 @@ private:
 
 inline ProductMagnitudeStats product_magnitude_stats;
 
+/// This class collects the set of |aik.xk| and find the min & max
+/// and then reduces that to one number - dynamic range in decades
+/// (log10(max) - log10(min))
+class DynamicRangeStats {
+public:
+    void record_term(double value) {
+        if (value == 0.0) { ++row_zero_terms_; return; }
+        const double mag = std::abs(value);
+        row_min_ = std::min(row_min_, mag);
+        row_max_ = std::max(row_max_, mag);
+        ++row_terms_;
+    }
+
+    /// Close out the current row: reduce its terms to one dynamic-range
+    /// sample, bucket it by decade, then reset the per-row accumulator.
+    void end_row() {
+        if (row_terms_ == 0)      { ++empty_rows_; }
+        else if (row_terms_ == 1) { ++single_term_rows_; }
+        else {
+            const double range = std::log10(row_max_) - std::log10(row_min_);
+            const int decade = static_cast<int>(std::floor(range));
+            ++buckets_[decade];
+            ++total_;
+        }
+        row_min_ = std::numeric_limits<double>::infinity();
+        row_max_ = 0.0;
+        row_terms_ = 0;
+        row_zero_terms_ = 0;
+    }
+
+    void reset() {
+        buckets_.clear();
+        total_ = 0;
+        empty_rows_ = 0;
+        single_term_rows_ = 0;
+        row_min_ = std::numeric_limits<double>::infinity();
+        row_max_ = 0.0;
+        row_terms_ = 0;
+        row_zero_terms_ = 0;
+    }
+
+    const std::map<int, std::size_t>& buckets() const { return buckets_; }
+    std::size_t total() const { return total_; }              ///< rows contributing a real sample
+    std::size_t empty_rows() const { return empty_rows_; }     ///< all-zero rows (no sample)
+    std::size_t single_term_rows() const { return single_term_rows_; } ///< 1 nonzero term (no sample)
+
+private:
+    std::map<int, std::size_t> buckets_;  ///< dynamic-range decades -> count of dot products
+    std::size_t total_ = 0;
+    std::size_t empty_rows_ = 0;
+    std::size_t single_term_rows_ = 0;
+
+    // In-progress row accumulator.
+    double row_min_ = std::numeric_limits<double>::infinity();
+    double row_max_ = 0.0;
+    std::size_t row_terms_ = 0;
+    std::size_t row_zero_terms_ = 0;
+};
+
+inline DynamicRangeStats dynamic_range_stats;
+
 using DSparse = mtl::mat::compressed2D<double>;
 
 /// Result of one solve configuration.
@@ -159,9 +220,11 @@ double matrix_inf_norm(const MatType& M) {
 /// matrix `A` and `x` are read at `Value` precision for every multiply, and only the
 /// *accumulation* runs at `ResidualAccumulator` precision.
 ///
-/// Also records every product term `a_ij * x_j` into `product_magnitude_stats`and every 
-/// row's term count into `residual_stats` -- callers wanting a clean sample should `reset()`
-/// both before the call they care about. This works for ANY `Value`,
+/// Also records every product term `a_ij * x_j` into `product_magnitude_stats`,
+/// each row's dynamic range (min-to-max decades spanned by that row's terms)
+/// into `dynamic_range_stats`, and every row's term count into `residual_stats`
+/// -- callers wanting a clean sample should `reset()` whichever of these they
+/// care about before the call. This works for ANY `Value`,
 /// including plain `double` (the default `accumulator_traits<double,double>`
 /// specialization is a zero-overhead identity, so `Value=double,
 /// ResidualAccumulator=double` reproduces MTL5's own double-residual
@@ -189,10 +252,13 @@ void residual_with_accumulator(const mtl::mat::compressed2D<Value>& A,
         std::size_t accum_len = 0;
         for (std::size_t k = rp[i]; k < rp[i + 1]; ++k) {
             const Value xv = static_cast<Value>(x(static_cast<int>(ci[k])));
-            product_magnitude_stats.record(static_cast<double>(dat[k] * xv));
+            const double term = static_cast<double>(dat[k] * xv);
+            product_magnitude_stats.record(term);
+            dynamic_range_stats.record_term(term);
             AT::add_product(acc, dat[k], xv);
             ++accum_len;
         }
+        dynamic_range_stats.end_row();
 
         residual_stats.record(accum_len);
 
@@ -365,8 +431,8 @@ solve_stats mixed_refine(const DSparse& A,
 /// `iterative_refine_accumulated_residual<double, double>` over the ORIGINAL
 /// double matrix, instead of MTL5's generic core, so
 /// `residual_with_accumulator`'s instrumentation (`product_magnitude_stats`,
-/// `residual_stats`) records every term of every residual dot product formed
-/// during the run.
+/// `dynamic_range_stats`, `residual_stats`) records every term of every
+/// residual dot product formed during the run.
 ///
 /// Mathematically identical to `mixed_refine`: `Value=double,
 /// ResidualAccumulator=double` is the default `accumulator_traits<double,
@@ -376,10 +442,10 @@ solve_stats mixed_refine(const DSparse& A,
 /// adding research-specific instrumentation to MTL5's clean generic core (the
 /// same reasoning `iterative_refine_accumulated_residual` itself documents).
 ///
-/// Caller should `product_magnitude_stats.reset()` (and `residual_stats.reset()`
-/// if the accumulation-length summary is also wanted) before calling, then read
-/// the stats back out afterward -- they accumulate across every iteration of
-/// the run, not just one snapshot.
+/// Caller should `reset()` whichever of `product_magnitude_stats`,
+/// `dynamic_range_stats`, and `residual_stats` it cares about before calling,
+/// then read them back out afterward -- they accumulate across every
+/// iteration of the run, not just one snapshot.
 template <typename T, typename FactorAccumulator = T>
 solve_stats mixed_refine_with_histogram(const DSparse& A,
                                         const std::vector<double>& b,

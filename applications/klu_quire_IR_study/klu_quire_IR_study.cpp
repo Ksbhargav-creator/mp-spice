@@ -78,6 +78,8 @@ struct FactorComparison {
     sw::mp_spice::solve_stats quire;
     sw::mp_spice::ProductMagnitudeStats plain_hist;
     sw::mp_spice::ProductMagnitudeStats quire_hist;
+    sw::mp_spice::DynamicRangeStats plain_range;
+    sw::mp_spice::DynamicRangeStats quire_range;
 };
 
 // ASCII bar chart of the product-magnitude distribution: one bar per decade
@@ -99,6 +101,31 @@ void print_magnitude_histogram(const std::string& label,
             ? static_cast<int>(50.0 * static_cast<double>(count) / static_cast<double>(max_count))
             : 0;
         std::printf("  1e%-4d [%7zu] %s\n", decade, count, std::string(bar_len, '#').c_str());
+    }
+}
+
+// ASCII bar chart of the dynamic-range distribution: one bar per "decades
+// spanned" bucket, where each sample is ONE dot product (row), not one term
+// -- Theo's hypothesis test. A row contributes log10(max term) -
+// log10(min term); rows with 0 or 1 nonzero terms don't produce a sample.
+void print_dynamic_range_histogram(const std::string& label,
+                                   const sw::mp_spice::DynamicRangeStats& stats) {
+    std::printf("\nDynamic range distribution (%s):\n", label.c_str());
+    if (stats.total() == 0) {
+        std::printf("  (no multi-term dot products recorded -- solve may have failed)\n");
+        return;
+    }
+    std::printf("  %zu dot products recorded, %zu single-term, %zu empty\n",
+                stats.total(), stats.single_term_rows(), stats.empty_rows());
+    std::size_t max_count = 0;
+    for (const auto& bucket : stats.buckets()) max_count = std::max(max_count, bucket.second);
+    for (const auto& bucket : stats.buckets()) {
+        int decades = bucket.first;
+        std::size_t count = bucket.second;
+        int bar_len = (max_count > 0)
+            ? static_cast<int>(50.0 * static_cast<double>(count) / static_cast<double>(max_count))
+            : 0;
+        std::printf("  %2d decades [%7zu] %s\n", decades, count, std::string(bar_len, '#').c_str());
     }
 }
 
@@ -129,6 +156,25 @@ void write_histogram_csv(std::ofstream& out,
     }
 }
 
+// Appends the per-dot-product dynamic-range histogram to
+// csv/dynamic_range_histogram.csv -- one row per non-empty "decades spanned"
+// bucket. SingleTermRows/EmptyRows/Total are repeated on every row of a group
+// (same rectangular-for-pandas convention as write_histogram_csv).
+void write_dynamic_range_csv(std::ofstream& out,
+                             const std::string& matrix_name,
+                             std::size_t n,
+                             const std::string& experiment,
+                             const std::string& type,
+                             const std::string& variant,
+                             const sw::mp_spice::DynamicRangeStats& stats) {
+    for (const auto& bucket : stats.buckets()) {
+        out << matrix_name << ',' << n << ',' << experiment << ",\"" << type << "\","
+            << variant << ',' << bucket.first << ',' << bucket.second << ','
+            << stats.single_term_rows() << ',' << stats.empty_rows() << ','
+            << stats.total() << '\n';
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -156,14 +202,18 @@ int main(int argc, char** argv) {
         using P = decltype(tag);
 
         sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
         auto plain = sw::mp_spice::mixed_refine_with_histogram<P>(A, b, ones);
         auto plain_hist = sw::mp_spice::product_magnitude_stats;
+        auto plain_range = sw::mp_spice::dynamic_range_stats;
 
         sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
         auto quire = sw::mp_spice::mixed_refine_with_histogram<P, sw::mp_spice::quire_acc<P>>(A, b, ones);
         auto quire_hist = sw::mp_spice::product_magnitude_stats;
+        auto quire_range = sw::mp_spice::dynamic_range_stats;
 
-        return {type, plain, quire, plain_hist, quire_hist};
+        return {type, plain, quire, plain_hist, quire_hist, plain_range, quire_range};
     };
     const std::vector<FactorComparison> ir_rows = {
         ir_row("posit<16,2>", posit<16, 2>{}),
@@ -183,6 +233,8 @@ int main(int argc, char** argv) {
     for (const auto& row : ir_rows) {
         print_magnitude_histogram(row.type + " plain factorization", row.plain_hist);
         print_magnitude_histogram(row.type + " quire factorization", row.quire_hist);
+        print_dynamic_range_histogram(row.type + " plain factorization", row.plain_range);
+        print_dynamic_range_histogram(row.type + " quire factorization", row.quire_range);
     }
 
     // --- 2. Working-precision residual: plain vs quire summation.
@@ -196,15 +248,19 @@ int main(int argc, char** argv) {
         using Working = decltype(tag);
 
         sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
         auto plain = sw::mp_spice::working_precision_refine_with_histogram<Working>(A, b, ones);
         auto plain_hist = sw::mp_spice::product_magnitude_stats;
+        auto plain_range = sw::mp_spice::dynamic_range_stats;
 
         sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
         auto quire = sw::mp_spice::working_precision_refine_with_histogram<
             Working, sw::mp_spice::quire_acc<Working>>(A, b, ones);
         auto quire_hist = sw::mp_spice::product_magnitude_stats;
+        auto quire_range = sw::mp_spice::dynamic_range_stats;
 
-        return {type, plain, quire, plain_hist, quire_hist};
+        return {type, plain, quire, plain_hist, quire_hist, plain_range, quire_range};
     };
     const std::vector<FactorComparison> wp_rows = {
         wp_row("posit<32,2>", posit<32, 2>{}),
@@ -224,6 +280,8 @@ int main(int argc, char** argv) {
     for (const auto& row : wp_rows) {
         print_magnitude_histogram(row.type + " plain residual", row.plain_hist);
         print_magnitude_histogram(row.type + " quire residual", row.quire_hist);
+        print_dynamic_range_histogram(row.type + " plain residual", row.plain_range);
+        print_dynamic_range_histogram(row.type + " quire residual", row.quire_range);
     }
 
     // CSV export (csv/product_magnitude_histogram.csv, matching the existing
@@ -251,6 +309,33 @@ int main(int argc, char** argv) {
                                 row.type, "Quire", row.quire_hist);
         }
         std::printf("\nWrote %s\n", csv_path.c_str());
+    }
+
+    // CSV export (csv/dynamic_range_histogram.csv) -- Theo's per-dot-product
+    // dynamic-range diagnostic, same Matrix/Experiment/Type/Variant grouping
+    // convention as the product-magnitude CSV above.
+    const std::string range_csv_path = "csv/dynamic_range_histogram.csv";
+    const bool range_csv_exists = std::filesystem::exists(range_csv_path);
+    std::ofstream range_csv_out(range_csv_path, std::ios::app);
+    if (!range_csv_out) {
+        std::fprintf(stderr, "warning: could not open %s for writing\n", range_csv_path.c_str());
+    } else {
+        if (!range_csv_exists)
+            range_csv_out << "Matrix,n,Experiment,Type,Variant,RangeDecades,Count,"
+                             "SingleTermRows,EmptyRows,Total\n";
+        for (const auto& row : ir_rows) {
+            write_dynamic_range_csv(range_csv_out, matrix_name, A.num_rows(), "FactorAccumulatorIR",
+                                    row.type, "Plain", row.plain_range);
+            write_dynamic_range_csv(range_csv_out, matrix_name, A.num_rows(), "FactorAccumulatorIR",
+                                    row.type, "Quire", row.quire_range);
+        }
+        for (const auto& row : wp_rows) {
+            write_dynamic_range_csv(range_csv_out, matrix_name, A.num_rows(), "WorkingPrecisionResidualIR",
+                                    row.type, "Plain", row.plain_range);
+            write_dynamic_range_csv(range_csv_out, matrix_name, A.num_rows(), "WorkingPrecisionResidualIR",
+                                    row.type, "Quire", row.quire_range);
+        }
+        std::printf("Wrote %s\n", range_csv_path.c_str());
     }
     return 0;
 }
