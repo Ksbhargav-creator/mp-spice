@@ -185,12 +185,52 @@ tested. First smoke test on `rajat11` validated the mechanism but was
 inconclusive on the hypothesis itself — the matrix is too small and
 well-conditioned to produce a real pass/fail contrast.
 
-### 4. Future direction
+### 4. Dataset results (Tier 1 sweep)
 
-Test on bigger, stiffer matrices. `rajat11`/`rajat14` are too small and
-well-conditioned to produce dot products with meaningful dynamic range or to
-show a real pass/fail contrast for Theo's hypothesis — a genuinely stiff
-SPICE Jacobian at scale is needed next.
+First real pass/fail dataset: 10 SuiteSparse circuit matrices (135–7,602
+rows), run through both algorithms via `scripts/run_matrix_sweep.sh`,
+normalized with `csv/normalize_dynamic_range.py`. `rajat01` is excluded — it
+crashed on load (`unsupported Matrix Market field 'pattern'`, a reader
+limitation, not a result).
+
+Sorted worst-to-best by Table 2 (`posit<32,2>`, plain) forward error, against
+that same run's dynamic-range mean/max:
+
+| Matrix | n | Table 2 fwd err | Dyn. range Mean / Max |
+|--------|---|------------------|------------------------|
+| rajat13 | 7598 | 7.84e-02 | 1.32 / 7 |
+| rajat19 | 1157 | 7.70e-02 | 1.78 / 21 |
+| rajat04 | 1041 | 4.40e-03 | 2.22 / 8 |
+| rajat14 | 180  | 9.45e-04 | 1.81 / 8 |
+| rajat12 | 1879 | 3.83e-04 | 2.13 / 7 |
+| rajat03 | 7602 | 3.85e-05 | 8.93 / 12 |
+| add20   | 2395 | 1.45e-05 | 4.98 / 10 |
+| rajat05 | 301  | 1.23e-05 | 2.83 / 6 |
+| rajat11 | 135  | 5.68e-06 | 3.17 / 6 |
+| add32   | 4960 | 4.52e-07 | 3.12 / 34 |
+
+**This does not cleanly support the hypothesis at the matrix level.**
+`rajat19` fits it (high dynamic range, bad accuracy), but `rajat13` and
+`rajat19` have nearly identical failure severity despite dynamic-range max 7
+vs. 21 — and `add32` has the *widest* dynamic range in the whole set (34) yet
+the *best* accuracy. Mean doesn't rescue it either: `rajat13` has the lowest
+mean in the set despite being the worst performer. One matrix-wide summary
+number (mean or max) doesn't separate real failures from real passes here.
+
+Also worth noting: `add20` fails badly (fwd err ≈ 4.0) but only at
+`posit<16,2>` in Table 1 — a different, precision-width-specific failure
+mode, not obviously the same mechanism as `rajat13`/`rajat19`.
+
+### 5. Future direction
+
+The Tier 1 result argues for a **per-row diagnostic**, not more matrices at
+the same aggregate granularity: pair each row's *own* dynamic range against
+that row's *own* residual contribution, rather than summarizing a whole
+matrix into one mean/max. `rajat13` may have a small number of genuinely bad
+rows that a matrix-wide summary washes out entirely. Bigger/stiffer matrices
+(`rajat30`, currently running) are still worth the pass/fail contrast, but the
+Tier 1 result suggests the current histogram granularity may not surface it
+even at scale.
 
 ---
 

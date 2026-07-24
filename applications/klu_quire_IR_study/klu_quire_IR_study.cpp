@@ -178,6 +178,9 @@ void write_dynamic_range_csv(std::ofstream& out,
 } // namespace
 
 int main(int argc, char** argv) {
+    // Force line-buffered stdout even when redirected to a file
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
+
     std::string mtx;
     if (argc > 1) mtx = argv[1];
 
