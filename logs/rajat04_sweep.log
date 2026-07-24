@@ -1,0 +1,233 @@
+Loading data/rajat04/rajat04.mtx
+Matrix: 1041 x 1041, nnz = 9642
+
+Native KLU + double-residual iterative refinement (factor in posit):
+type          |   plain res  plain ferr    it |   quire res  quire ferr    it
+--------------------------------------------------------------------------
+posit<16,2>   |   9.641e-11   1.237e-10     9 |   8.049e-11   8.731e-11     8
+posit<32,2>   |   1.240e-12   2.040e-12     3 |   1.706e-11   1.819e-11     2
+
+Product magnitude distribution (posit<16,2> plain factorization):
+  78525 products recorded, 17895 exact zeros
+  1e-7   [    329] 
+  1e-6   [    926] #
+  1e-5   [    737] #
+  1e-4   [   1617] ##
+  1e-3   [   1188] #
+  1e-2   [  10035] #############
+  1e-1   [  35852] ##################################################
+  1e0    [  20893] #############################
+  1e1    [   5373] #######
+  1e2    [   1125] #
+  1e3    [    432] 
+  1e4    [     18] 
+
+Product magnitude distribution (posit<16,2> quire factorization):
+  69800 products recorded, 16978 exact zeros
+  1e-7   [    208] 
+  1e-6   [    897] #
+  1e-5   [    669] #
+  1e-4   [   1434] ##
+  1e-3   [   1056] #
+  1e-2   [   8920] ##############
+  1e-1   [  31840] ##################################################
+  1e0    [  18601] #############################
+  1e1    [   4775] #######
+  1e2    [   1000] #
+  1e3    [    384] 
+  1e4    [     16] 
+
+Dynamic range distribution (posit<16,2> plain factorization):
+  9081 dot products recorded, 288 single-term, 1041 empty
+   0 decades [    819] #########
+   1 decades [   4158] ##################################################
+   2 decades [   1476] #################
+   3 decades [    279] ###
+   4 decades [    756] #########
+   5 decades [    567] ######
+   6 decades [    837] ##########
+   7 decades [    144] #
+   8 decades [     45] 
+
+Dynamic range distribution (posit<16,2> quire factorization):
+  8072 dot products recorded, 256 single-term, 1041 empty
+   0 decades [    728] #########
+   1 decades [   3696] ##################################################
+   2 decades [   1312] #################
+   3 decades [    248] ###
+   4 decades [    672] #########
+   5 decades [    504] ######
+   6 decades [    744] ##########
+   7 decades [    128] #
+   8 decades [     40] 
+
+Product magnitude distribution (posit<32,2> plain factorization):
+  26175 products recorded, 12393 exact zeros
+  1e-7   [     53] 
+  1e-6   [    357] #
+  1e-5   [    256] #
+  1e-4   [    537] ##
+  1e-3   [    396] #
+  1e-2   [   3345] ##############
+  1e-1   [  11927] ##################################################
+  1e0    [   6988] #############################
+  1e1    [   1791] #######
+  1e2    [    375] #
+  1e3    [    144] 
+  1e4    [      6] 
+
+Product magnitude distribution (posit<32,2> quire factorization):
+  17450 products recorded, 11476 exact zeros
+  1e-7   [     26] 
+  1e-6   [    249] #
+  1e-5   [    169] #
+  1e-4   [    358] ##
+  1e-3   [    264] #
+  1e-2   [   2230] ##############
+  1e-1   [   7953] ##################################################
+  1e0    [   4657] #############################
+  1e1    [   1194] #######
+  1e2    [    250] #
+  1e3    [     96] 
+  1e4    [      4] 
+
+Dynamic range distribution (posit<32,2> plain factorization):
+  3027 dot products recorded, 96 single-term, 1041 empty
+   0 decades [    273] #########
+   1 decades [   1386] ##################################################
+   2 decades [    492] #################
+   3 decades [     93] ###
+   4 decades [    252] #########
+   5 decades [    189] ######
+   6 decades [    279] ##########
+   7 decades [     48] #
+   8 decades [     15] 
+
+Dynamic range distribution (posit<32,2> quire factorization):
+  2018 dot products recorded, 64 single-term, 1041 empty
+   0 decades [    182] #########
+   1 decades [    924] ##################################################
+   2 decades [    328] #################
+   3 decades [     62] ###
+   4 decades [    168] #########
+   5 decades [    126] ######
+   6 decades [    186] ##########
+   7 decades [     32] #
+   8 decades [     10] 
+
+Working-precision residual: plain vs quire summation:
+type          |   plain res  plain ferr    it |   quire res  quire ferr    it
+--------------------------------------------------------------------------
+posit<32,2>   |   4.464e-03   4.400e-03     8 |   1.027e-04   1.009e-04     5
+posit<64,3>   |   7.868e-12   9.459e-12     1 |   7.868e-12   9.459e-12     1
+
+Product magnitude distribution (posit<32,2> plain residual):
+  69800 products recorded, 16978 exact zeros
+  1e-7   [    444] 
+  1e-6   [    641] #
+  1e-5   [    686] #
+  1e-4   [   1437] ##
+  1e-3   [   1056] #
+  1e-2   [   8920] ##############
+  1e-1   [  31747] ##################################################
+  1e0    [  18693] #############################
+  1e1    [   4776] #######
+  1e2    [   1000] #
+  1e3    [    384] 
+  1e4    [     16] 
+
+Product magnitude distribution (posit<32,2> quire residual):
+  43625 products recorded, 14227 exact zeros
+  1e-7   [    375] 
+  1e-6   [    325] 
+  1e-5   [    405] #
+  1e-4   [    900] ##
+  1e-3   [    660] #
+  1e-2   [   5575] ##############
+  1e-1   [  19882] ##################################################
+  1e0    [  11643] #############################
+  1e1    [   2985] #######
+  1e2    [    625] #
+  1e3    [    240] 
+  1e4    [     10] 
+
+Dynamic range distribution (posit<32,2> plain residual):
+  8072 dot products recorded, 256 single-term, 1041 empty
+   0 decades [    728] #########
+   1 decades [   3696] ##################################################
+   2 decades [   1312] #################
+   3 decades [    248] ###
+   4 decades [    672] #########
+   5 decades [    504] ######
+   6 decades [    744] ##########
+   7 decades [    128] #
+   8 decades [     40] 
+
+Dynamic range distribution (posit<32,2> quire residual):
+  5045 dot products recorded, 160 single-term, 1041 empty
+   0 decades [    455] #########
+   1 decades [   2310] ##################################################
+   2 decades [    820] #################
+   3 decades [    155] ###
+   4 decades [    420] #########
+   5 decades [    315] ######
+   6 decades [    465] ##########
+   7 decades [     80] #
+   8 decades [     25] 
+
+Product magnitude distribution (posit<64,3> plain residual):
+  8725 products recorded, 10559 exact zeros
+  1e-7   [      1] 
+  1e-6   [    139] #
+  1e-5   [     81] #
+  1e-4   [    180] ##
+  1e-3   [    132] #
+  1e-2   [   1115] #############
+  1e-1   [   3989] ##################################################
+  1e0    [   2316] #############################
+  1e1    [    597] #######
+  1e2    [    125] #
+  1e3    [     48] 
+  1e4    [      2] 
+
+Product magnitude distribution (posit<64,3> quire residual):
+  8725 products recorded, 10559 exact zeros
+  1e-7   [      1] 
+  1e-6   [    139] #
+  1e-5   [     81] #
+  1e-4   [    180] ##
+  1e-3   [    132] #
+  1e-2   [   1115] #############
+  1e-1   [   3989] ##################################################
+  1e0    [   2316] #############################
+  1e1    [    597] #######
+  1e2    [    125] #
+  1e3    [     48] 
+  1e4    [      2] 
+
+Dynamic range distribution (posit<64,3> plain residual):
+  1009 dot products recorded, 32 single-term, 1041 empty
+   0 decades [     91] #########
+   1 decades [    462] ##################################################
+   2 decades [    164] #################
+   3 decades [     31] ###
+   4 decades [     84] #########
+   5 decades [     63] ######
+   6 decades [     93] ##########
+   7 decades [     16] #
+   8 decades [      5] 
+
+Dynamic range distribution (posit<64,3> quire residual):
+  1009 dot products recorded, 32 single-term, 1041 empty
+   0 decades [     91] #########
+   1 decades [    462] ##################################################
+   2 decades [    164] #################
+   3 decades [     31] ###
+   4 decades [     84] #########
+   5 decades [     63] ######
+   6 decades [     93] ##########
+   7 decades [     16] #
+   8 decades [      5] 
+
+Wrote csv/product_magnitude_histogram.csv
+Wrote csv/dynamic_range_histogram.csv

@@ -1,0 +1,2 @@
+Loading data/rajat01/rajat01.mtx
+libc++abi: terminating due to uncaught exception of type std::runtime_error: mm_read: unsupported Matrix Market field 'pattern' (only real/integer)
