@@ -105,17 +105,7 @@ factorization path, not the residual). Historical, kept as-is:
 | rajat12 | 1879 | posit<32,2> | Schur | 1 | 1.848 |
 |  |  |  |  |  |  |
 
-**Quire in the residual accumulation**
-
-Originally measured with `x`/`b`/`r`/`dx` hardcoded to `double` regardless of
-the working type — the individual multiply-accumulate was genuinely
-low-precision, but the iterate itself never lived at low precision between
-steps, which hid any real difference plain vs. quire accumulation could make.
-Fixed (see `residual_with_accumulator` / `iterative_refine_accumulated_residual`
-in `include/sw/mp_spice/klu_study.hpp`) so `x`/`b`/`r`/`dx` genuinely live at
-`Working` precision throughout, matching MTL5's own `iterative_refine` core.
-Re-run against the Tier 1 set below; `rajat03` is still pending a local
-re-run (too slow for the sandbox this was done in).
+**Quire in the residual accumulation**.
 
 `posit<32,2>`, plain vs. quire accumulator, sorted worst-to-best by plain
 forward error:
