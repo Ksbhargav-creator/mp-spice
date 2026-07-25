@@ -67,7 +67,9 @@ Accuracy, direct solve, plain vs. quire accumulator:
 |        |   |      |                        |                        |
 |        |   |      |                        |                        |
 
-Accumulation length (median number of terms per dot product):
+Accumulation length (median number of terms per dot product) — from an
+earlier build, unaffected by the Table 2 fix (this table is about the
+factorization path, not the residual). Historical, kept as-is:
 
 | Matrix | n | Type | Kernel | Median | Mean |
 |--------|---|------|--------|--------|------|
@@ -103,36 +105,46 @@ Accumulation length (median number of terms per dot product):
 | rajat12 | 1879 | posit<32,2> | Schur | 1 | 1.848 |
 |  |  |  |  |  |  |
 
-**Quire in the residual accumulation (cast to double before accumulating — not genuinely mixed precision)**
+**Quire in the residual accumulation**
 
-Accuracy, "Standard IR" (quire in factorization) vs. "Residual IR" (quire on the double-cast residual):
+Originally measured with `x`/`b`/`r`/`dx` hardcoded to `double` regardless of
+the working type — the individual multiply-accumulate was genuinely
+low-precision, but the iterate itself never lived at low precision between
+steps, which hid any real difference plain vs. quire accumulation could make.
+Fixed (see `residual_with_accumulator` / `iterative_refine_accumulated_residual`
+in `include/sw/mp_spice/klu_study.hpp`) so `x`/`b`/`r`/`dx` genuinely live at
+`Working` precision throughout, matching MTL5's own `iterative_refine` core.
+Re-run against the Tier 1 set below; `rajat03` is still pending a local
+re-run (too slow for the sandbox this was done in).
 
-| Matrix | n | Type | Method | Forward Error | Iterations |
-|--------|---|------|--------|----------------|------------|
-| rajat11 | 135 | posit16 | Standard IR | 1.528e-10 | 25 |
-| rajat11 | 135 | posit16 | Residual IR | 1.528e-10 | 25 |
-| rajat11 | 135 | posit32 | Standard IR | 2.050e-13 | 3 |
-| rajat11 | 135 | posit32 | Residual IR | 2.180e-13 | 3 |
-| rajat14 | 180 | posit16 | Standard IR | 1.819e-11 | 16 |
-| rajat14 | 180 | posit16 | Residual IR | 4.366e-11 | 15 |
-| rajat14 | 180 | posit32 | Standard IR | 4.580e-12 | 7 |
-| rajat14 | 180 | posit32 | Residual IR | 3.352e-12 | 6 |
-| rajat05 | 301 | posit16 | Standard IR | 3.94e-09 | 25 |
-| rajat05 | 301 | posit16 | Residual IR | 3.94e-09 | 25 |
-| rajat05 | 301 | posit32 | Standard IR | 4.27e-13 | 3 |
-| rajat05 | 301 | posit32 | Residual IR | 3.84e-13 | 3 |
-| rajat04 | 1041 | posit16 | Standard IR | 7.28e-12 | 17 |
-| rajat04 | 1041 | posit16 | Residual IR | 7.28e-12 | 17 |
-| rajat04 | 1041 | posit32 | Standard IR | 1.29e-13 | 5 |
-| rajat04 | 1041 | posit32 | Residual IR | 9.16e-12 | 3 |
-| rajat12 | 1879 | posit16 | Standard IR | 4.82e-11 | 16 |
-| rajat12 | 1879 | posit16 | Residual IR | 4.82e-11 | 16 |
-| rajat12 | 1879 | posit32 | Standard IR | 3.54e-12 | 9 |
-| rajat12 | 1879 | posit32 | Residual IR | 3.62e-12 | 7 |
-|  |  |  |  |  |  |
+`posit<32,2>`, plain vs. quire accumulator, sorted worst-to-best by plain
+forward error:
 
-Accumulation length (median number of terms per residual dot product — same for
-both Standard and Residual IR, since term count doesn't depend on the accumulator):
+| Matrix | n | Forward Error (plain) | Iterations | Forward Error (quire) | Iterations | Quire improvement |
+|--------|---|------------------------|------------|-------------------------|------------|--------------------|
+| rajat19 | 1157 | 1.047e-01 | 8 | 5.896e-02 | 5 | 1.8x |
+| rajat13 | 7598 | 7.833e-02 | 7 | 4.233e-03 | 6 | 18.5x |
+| rajat04 | 1041 | 4.387e-03 | 8 | 1.008e-04 | 5 | 43.5x |
+| rajat14 | 180  | 9.270e-04 | 7 | 5.272e-05 | 5 | 17.6x |
+| rajat12 | 1879 | 3.833e-04 | 7 | 5.446e-06 | 5 | 70.4x |
+| rajat05 | 301  | 2.575e-05 | 6 | 1.087e-05 | 5 | 2.4x |
+| add20   | 2395 | 1.452e-05 | 5 | 6.363e-06 | 5 | 2.3x |
+| rajat11 | 135  | 4.098e-06 | 6 | 2.123e-06 | 6 | 1.9x |
+| add32   | 4960 | 5.439e-07 | 9 | 2.794e-07 | 5 | 1.9x |
+| rajat03 | 7602 | pending (local re-run) | — | pending | — | — |
+
+**Quire now shows a real, consistent forward-error improvement on every
+matrix re-run** — 1.8x to 70x, not the flat "no gain" result the double-cast
+bug was producing. This reverses the earlier headline finding for this
+experiment; see the dataset table below for how this interacts with the
+dynamic-range hypothesis.
+
+Accumulation length (median number of terms per residual dot product) — from
+an earlier build; `klu_quire_IR_study` no longer prints this directly
+(the LU factorization's own accumulation-length tracking was intentionally
+stripped, see `docs/roadmap.md`), so these are not re-derivable from the
+current sweep without re-adding that instrumentation. Left here as-is,
+historical:
 
 | Matrix | n | Type | Mean | Median |
 |--------|---|------|------|--------|
@@ -194,28 +206,36 @@ crashed on load (`unsupported Matrix Market field 'pattern'`, a reader
 limitation, not a result).
 
 Sorted worst-to-best by Table 2 (`posit<32,2>`, plain) forward error, against
-that same run's dynamic-range mean/max:
+that same run's dynamic-range mean/max. Re-run with the Table 2 fix (see
+above); `rajat03`'s dynamic range is unaffected by that fix (Table 1-derived)
+but its Table 2 forward error is still pending a local re-run:
 
-| Matrix | n | Table 2 fwd err | Dyn. range Mean / Max |
-|--------|---|------------------|------------------------|
-| rajat13 | 7598 | 7.84e-02 | 1.32 / 7 |
-| rajat19 | 1157 | 7.70e-02 | 1.78 / 21 |
-| rajat04 | 1041 | 4.40e-03 | 2.22 / 8 |
-| rajat14 | 180  | 9.45e-04 | 1.81 / 8 |
-| rajat12 | 1879 | 3.83e-04 | 2.13 / 7 |
-| rajat03 | 7602 | 3.85e-05 | 8.93 / 12 |
-| add20   | 2395 | 1.45e-05 | 4.98 / 10 |
-| rajat05 | 301  | 1.23e-05 | 2.83 / 6 |
-| rajat11 | 135  | 5.68e-06 | 3.17 / 6 |
-| add32   | 4960 | 4.52e-07 | 3.12 / 34 |
+| Matrix | n | Table 2 fwd err (plain) | Table 2 fwd err (quire) | Dyn. range Mean / Max |
+|--------|---|---------------------------|----------------------------|------------------------|
+| rajat19 | 1157 | 1.047e-01 | 5.896e-02 | 1.78 / 21 |
+| rajat13 | 7598 | 7.833e-02 | 4.233e-03 | 1.32 / 7 |
+| rajat04 | 1041 | 4.387e-03 | 1.008e-04 | 2.22 / 8 |
+| rajat14 | 180  | 9.270e-04 | 5.272e-05 | 1.81 / 8 |
+| rajat12 | 1879 | 3.833e-04 | 5.446e-06 | 2.13 / 7 |
+| rajat05 | 301  | 2.575e-05 | 1.087e-05 | 2.83 / 6 |
+| add20   | 2395 | 1.452e-05 | 6.363e-06 | 4.98 / 10 |
+| rajat11 | 135  | 4.098e-06 | 2.123e-06 | 3.17 / 6 |
+| add32   | 4960 | 5.439e-07 | 2.794e-07 | 3.12 / 34 |
+| rajat03 | 7602 | pending | pending | 8.93 / 12 |
 
-**This does not cleanly support the hypothesis at the matrix level.**
-`rajat19` fits it (high dynamic range, bad accuracy), but `rajat13` and
-`rajat19` have nearly identical failure severity despite dynamic-range max 7
-vs. 21 — and `add32` has the *widest* dynamic range in the whole set (34) yet
-the *best* accuracy. Mean doesn't rescue it either: `rajat13` has the lowest
-mean in the set despite being the worst performer. One matrix-wide summary
-number (mean or max) doesn't separate real failures from real passes here.
+**The dynamic-range-predicts-accuracy question is still not clean.**
+`rajat19` is now unambiguously the worst matrix in the set and also has the
+highest dynamic-range max (21) among everything but `add32` — consistent
+with the hypothesis. But `rajat13` is nearly as bad with a max of only 7, and
+`add32` still has the *widest* dynamic range of the whole set (34) with the
+*best* accuracy. One matrix-wide summary number (mean or max) still doesn't
+cleanly separate real failures from real passes.
+
+**The plain-vs-quire question, however, is no longer ambiguous.** With the
+Table 2 double-cast bug fixed, quire improves forward error on every single
+matrix re-run — 1.8x to 70x, see the residual-accumulation table above. The
+original "no quire gain" conclusion for this experiment was an artifact of
+the bug, not a real finding.
 
 Also worth noting: `add20` fails badly (fwd err ≈ 4.0) but only at
 `posit<16,2>` in Table 1 — a different, precision-width-specific failure
@@ -223,14 +243,19 @@ mode, not obviously the same mechanism as `rajat13`/`rajat19`.
 
 ### 5. Future direction
 
-The Tier 1 result argues for a **per-row diagnostic**, not more matrices at
-the same aggregate granularity: pair each row's *own* dynamic range against
-that row's *own* residual contribution, rather than summarizing a whole
-matrix into one mean/max. `rajat13` may have a small number of genuinely bad
-rows that a matrix-wide summary washes out entirely. Bigger/stiffer matrices
-(`rajat30`, currently running) are still worth the pass/fail contrast, but the
-Tier 1 result suggests the current histogram granularity may not surface it
-even at scale.
+The dynamic-range-vs-accuracy question still argues for a **per-row
+diagnostic**, not more matrices at the same aggregate granularity: pair each
+row's *own* dynamic range against that row's *own* residual contribution,
+rather than summarizing a whole matrix into one mean/max. `rajat13` may have
+a small number of genuinely bad rows that a matrix-wide summary washes out
+entirely.
+
+`rajat30` (644K rows) already ran once and showed a large quire gain in
+Table 2 (residual res 7.57e-01→4.87e-03, ferr 9.92e-02→1.25e-03) — but that
+run used the pre-fix double-casting code, so it needs to be re-run with the
+fixed code before that number can be trusted. `rajat03` needs the same
+treatment (too slow to finish in the sandbox this fix was verified in).
+Both are the immediate next step, not new diagnostics.
 
 ---
 
