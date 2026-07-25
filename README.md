@@ -123,11 +123,8 @@ forward error:
 | add32   | 4960 | 5.439e-07 | 9 | 2.794e-07 | 5 | 1.9x |
 | rajat03 | 7602 | pending (local re-run) | — | pending | — | — |
 
-**Quire now shows a real, consistent forward-error improvement on every
-matrix re-run** — 1.8x to 70x, not the flat "no gain" result the double-cast
-bug was producing. This reverses the earlier headline finding for this
-experiment; see the dataset table below for how this interacts with the
-dynamic-range hypothesis.
+**Quire shows a real, consistent forward-error improvement on every
+matrix re-run** — 1.8x to 70x.
 
 Accumulation length (median number of terms per residual dot product) — from
 an earlier build; `klu_quire_IR_study` no longer prints this directly
@@ -233,7 +230,7 @@ mode, not obviously the same mechanism as `rajat13`/`rajat19`.
 
 ### 5. Future direction
 
-The dynamic-range-vs-accuracy question still argues for a **per-row
+The dynamic-range-vs-accuracy question  argues for a **per-row
 diagnostic**, not more matrices at the same aggregate granularity: pair each
 row's *own* dynamic range against that row's *own* residual contribution,
 rather than summarizing a whole matrix into one mean/max. `rajat13` may have
