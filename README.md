@@ -128,10 +128,8 @@ matrix re-run** — 1.8x to 70x.
 
 Accumulation length (median number of terms per residual dot product) — from
 an earlier build; `klu_quire_IR_study` no longer prints this directly
-(the LU factorization's own accumulation-length tracking was intentionally
-stripped, see `docs/roadmap.md`), so these are not re-derivable from the
-current sweep without re-adding that instrumentation. Left here as-is,
-historical:
+, so these are not re-derivable from thecurrent sweep without re-adding that instrumentation. 
+Left here as-is, historical:
 
 | Matrix | n | Type | Mean | Median |
 |--------|---|------|------|--------|
