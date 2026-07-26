@@ -236,9 +236,9 @@ double matrix_inf_norm(const MatType& M) {
 /// separate concept here, so it keeps the same name.
 template <typename Value, typename ResidualAccumulator = Value>
 void residual_with_accumulator(const mtl::mat::compressed2D<Value>& A,
-                               const mtl::vec::dense_vector<double>& b,
-                               const mtl::vec::dense_vector<double>& x,
-                               mtl::vec::dense_vector<double>& r) {
+                               const mtl::vec::dense_vector<Value>& b,
+                               const mtl::vec::dense_vector<Value>& x,
+                               mtl::vec::dense_vector<Value>& r) {
     using AT = mtl::math::accumulator_traits<ResidualAccumulator, Value>;
 
     const std::size_t n = A.num_rows();
@@ -251,7 +251,10 @@ void residual_with_accumulator(const mtl::mat::compressed2D<Value>& A,
         AT::clear(acc);
         std::size_t accum_len = 0;
         for (std::size_t k = rp[i]; k < rp[i + 1]; ++k) {
-            const Value xv = static_cast<Value>(x(static_cast<int>(ci[k])));
+            const Value xv = x(static_cast<int>(ci[k]));  // already Value -- no downcast
+            // Instrumentation only -- recorded in double regardless of Value so the
+            // histogram buckets stay comparable across types; does not feed back
+            // into the actual accumulation below.
             const double term = static_cast<double>(dat[k] * xv);
             product_magnitude_stats.record(term);
             dynamic_range_stats.record_term(term);
@@ -262,39 +265,51 @@ void residual_with_accumulator(const mtl::mat::compressed2D<Value>& A,
 
         residual_stats.record(accum_len);
 
-        const double ax = AT::template value<double>(acc);
+        // Rounded out to Value precision -- the residual genuinely lives at Value
+        // from here on, not upcast to double (see #the working-precision bug fix).
+        const Value ax = AT::template value<Value>(acc);
         r(static_cast<int>(i)) = b(static_cast<int>(i)) - ax;
     }
 }
 
 /// Iterative refinement with an mp-spice-selected residual accumulator.
+///
+/// `b`, `x`, `r`, `dx` all live genuinely at `Value` precision throughout --
+/// mirroring MTL5's own `iterative_refine<Residual>` core (iterative_refine.hpp):
+/// the iterate is never upcast to `double` between steps, so a correction
+/// smaller than one `Value` ULP is lost on the add exactly like it would be on
+/// real posit-resident hardware, and `ResidualAccumulator`'s exactness during
+/// accumulation has somewhere to actually matter. Scalar convergence bookkeeping
+/// (norms, the rel_tol bound) is still done in `double` -- that's a monitor
+/// outside the algorithm's state, not part of it, same as MTL5's core.
 template <typename Value,
           typename ResidualAccumulator = Value,
           typename Factorization>
 mtl::sparse::refine_result iterative_refine_accumulated_residual(
     const mtl::mat::compressed2D<Value>& A,
     const Factorization& fac,
-    const mtl::vec::dense_vector<double>& b,
-    mtl::vec::dense_vector<double>& x,
+    const mtl::vec::dense_vector<Value>& b,
+    mtl::vec::dense_vector<Value>& x,
     const mtl::sparse::refine_options& opt = {}) {
+    using std::abs;  // ADL for custom number types
     const std::size_t n = A.num_rows();
     if (A.num_cols() != n)
         throw std::invalid_argument("iterative_refine_accumulated_residual: matrix must be square");
     if (static_cast<std::size_t>(b.size()) != n || static_cast<std::size_t>(x.size()) != n)
         throw std::invalid_argument("iterative_refine_accumulated_residual: b/x size does not match A");
 
-    auto norm_inf_vec = [&](const mtl::vec::dense_vector<double>& v) {
+    auto norm_inf_vec = [&](const mtl::vec::dense_vector<Value>& v) {
         double m = 0.0;
         for (std::size_t i = 0; i < n; ++i)
-            m = std::max(m, std::abs(v(static_cast<int>(i))));
+            m = std::max(m, static_cast<double>(abs(v(static_cast<int>(i)))));
         return m;
     };
 
     const double bnorm = norm_inf_vec(b);
     const double Ainf = matrix_inf_norm(A);  // ||A||_inf, from the SAME (low-precision)
                                               // matrix this function forms its residual from
-    mtl::vec::dense_vector<double> r(n), dx(n, 0.0);
-    mtl::vec::dense_vector<double> best_x = x;
+    mtl::vec::dense_vector<Value> r(n), dx(n, Value{0});
+    mtl::vec::dense_vector<Value> best_x = x;
     double best_rn = std::numeric_limits<double>::infinity();
     const int patience = std::max(1, opt.patience);
     int stalls = 0;
@@ -317,8 +332,8 @@ mtl::sparse::refine_result iterative_refine_accumulated_residual(
         if (stalls >= patience) break;
 
         if (opt.scaled) {
-            const double rho = rn;
             if (rn == 0.0) break;
+            const Value rho = static_cast<Value>(rn);
             for (std::size_t i = 0; i < n; ++i) r(static_cast<int>(i)) /= rho;
             fac.solve(dx, r);
             for (std::size_t i = 0; i < n; ++i)
@@ -509,8 +524,12 @@ solve_stats working_precision_refine_with_histogram(const DSparse& A,
         auto fac = mtl::sparse::factorization::native_klu_factor<
             Working, mtl::mat::parameters<>, Working>(AW);
 
-        mtl::vec::dense_vector<double> bv(n), xv(n, 0.0);
-        for (std::size_t i = 0; i < n; ++i) bv(static_cast<int>(i)) = buse[i];
+        // b/x genuinely live at Working precision throughout the refinement loop
+        // (see iterative_refine_accumulated_residual's doc comment) -- this was
+        // previously hardcoded to double, which silently gave the iterate more
+        // resolution than a real Working-precision-resident computation would have.
+        mtl::vec::dense_vector<Working> bv(n), xv(n, Working{0});
+        for (std::size_t i = 0; i < n; ++i) bv(static_cast<int>(i)) = static_cast<Working>(buse[i]);
 
         mtl::sparse::refine_options opt;
         opt.max_iter = max_iter;
@@ -522,7 +541,7 @@ solve_stats working_precision_refine_with_histogram(const DSparse& A,
             AW, fac, bv, xv, opt);
 
         std::vector<double> x(n);
-        for (std::size_t i = 0; i < n; ++i) x[i] = xv(static_cast<int>(i));
+        for (std::size_t i = 0; i < n; ++i) x[i] = static_cast<double>(xv(static_cast<int>(i)));
         s.iters = rr.iters;
         s.residual = residual_inf(A, x, b);
         s.fwd_error = forward_error_inf(x, exact);
