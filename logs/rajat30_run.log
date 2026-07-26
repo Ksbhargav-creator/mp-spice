@@ -1,0 +1,717 @@
+Loading data/rajat30/rajat30.mtx
+Matrix: 643994 x 643994, nnz = 6175377
+
+Native KLU + double-residual iterative refinement (factor in posit):
+type          |   plain res  plain ferr    it |   quire res  quire ferr    it
+--------------------------------------------------------------------------
+posit<16,2>   |   4.660e+02   1.448e+05     5 |   4.540e+02   4.468e+05     5
+posit<32,2>   |   1.320e-08   2.957e-08     7 |   9.482e-09   3.675e-08     6
+
+Product magnitude distribution (posit<16,2> plain factorization):
+  30876209 products recorded, 6176053 exact zeros
+  1e-40  [     12] 
+  1e-39  [     50] 
+  1e-38  [    106] 
+  1e-37  [    224] 
+  1e-36  [     54] 
+  1e-35  [     16] 
+  1e-34  [     44] 
+  1e-33  [     12] 
+  1e-32  [     34] 
+  1e-31  [     12] 
+  1e-30  [      6] 
+  1e-29  [     24] 
+  1e-28  [      4] 
+  1e-27  [     40] 
+  1e-26  [     40] 
+  1e-25  [     38] 
+  1e-24  [    149] 
+  1e-23  [   1580] 
+  1e-22  [   6639] 
+  1e-21  [   7627] 
+  1e-20  [   2448] 
+  1e-19  [  10049] 
+  1e-18  [   7190] 
+  1e-17  [   7306] 
+  1e-16  [  15394] 
+  1e-15  [  11813] 
+  1e-14  [  10121] 
+  1e-13  [ 720487] ###
+  1e-12  [1756575] ########
+  1e-11  [ 118939] 
+  1e-10  [ 501570] ##
+  1e-9   [ 175609] 
+  1e-8   [  12268] 
+  1e-7   [  13325] 
+  1e-6   [ 138203] 
+  1e-5   [7108720] #################################
+  1e-4   [10600690] ##################################################
+  1e-3   [3069886] ##############
+  1e-2   [4367933] ####################
+  1e-1   [1981830] #########
+  1e0    [ 165329] 
+  1e1    [  35733] 
+  1e2    [  17940] 
+  1e3    [   6509] 
+  1e4    [   2591] 
+  1e5    [    767] 
+  1e6    [    164] 
+  1e7    [     60] 
+  1e8    [     27] 
+  1e9    [      4] 
+  1e10   [     10] 
+  1e12   [      8] 
+
+Product magnitude distribution (posit<16,2> quire factorization):
+  30876195 products recorded, 6176067 exact zeros
+  1e-40  [     12] 
+  1e-39  [     48] 
+  1e-38  [     96] 
+  1e-37  [    218] 
+  1e-36  [     46] 
+  1e-35  [     42] 
+  1e-34  [     42] 
+  1e-33  [     16] 
+  1e-32  [     32] 
+  1e-31  [     12] 
+  1e-30  [      6] 
+  1e-29  [     26] 
+  1e-28  [      4] 
+  1e-27  [     34] 
+  1e-26  [     34] 
+  1e-25  [     50] 
+  1e-24  [    142] 
+  1e-23  [    260] 
+  1e-22  [   7792] 
+  1e-21  [   6140] 
+  1e-20  [   2128] 
+  1e-19  [   7635] 
+  1e-18  [   8766] 
+  1e-17  [   7630] 
+  1e-16  [  15138] 
+  1e-15  [  11378] 
+  1e-14  [  10425] 
+  1e-13  [   8393] 
+  1e-12  [  25575] 
+  1e-11  [ 919886] ####
+  1e-10  [1504410] ######
+  1e-9   [ 202726] 
+  1e-8   [  13383] 
+  1e-7   [ 409471] #
+  1e-6   [ 230158] #
+  1e-5   [  27832] 
+  1e-4   [  32058] 
+  1e-3   [7743455] ##################################
+  1e-2   [11262786] ##################################################
+  1e-1   [3245522] ##############
+  1e0    [ 260073] #
+  1e1    [2489086] ###########
+  1e2    [2329951] ##########
+  1e3    [  83048] 
+  1e4    [   5714] 
+  1e5    [   3236] 
+  1e6    [    886] 
+  1e7    [    209] 
+  1e8    [    113] 
+  1e9    [     27] 
+  1e10   [     21] 
+  1e11   [      8] 
+  1e12   [      8] 
+  1e15   [      8] 
+
+Dynamic range distribution (posit<16,2> plain factorization):
+  3206677 dot products recorded, 13293 single-term, 643994 empty
+   0 decades [ 144996] ####
+   1 decades [ 629256] #####################
+   2 decades [ 100591] ###
+   3 decades [  14090] 
+   4 decades [   7031] 
+   5 decades [   9105] 
+   6 decades [   3332] 
+   7 decades [   5439] 
+   8 decades [1470870] ##################################################
+   9 decades [ 722787] ########################
+  10 decades [  33303] #
+  11 decades [   7053] 
+  12 decades [   6411] 
+  13 decades [   7711] 
+  14 decades [   5192] 
+  15 decades [   4989] 
+  16 decades [  13074] 
+  17 decades [   3685] 
+  18 decades [   1270] 
+  19 decades [   8048] 
+  20 decades [   7799] 
+  21 decades [     45] 
+  22 decades [    141] 
+  23 decades [    130] 
+  24 decades [     49] 
+  25 decades [     15] 
+  26 decades [     34] 
+  27 decades [      1] 
+  28 decades [     12] 
+  29 decades [      1] 
+  30 decades [      2] 
+  34 decades [      5] 
+  35 decades [      5] 
+  36 decades [     58] 
+  37 decades [     24] 
+  38 decades [     45] 
+  39 decades [     55] 
+  40 decades [      7] 
+  41 decades [      1] 
+  42 decades [      8] 
+  43 decades [      7] 
+
+Dynamic range distribution (posit<16,2> quire factorization):
+  3206676 dot products recorded, 13294 single-term, 643994 empty
+   0 decades [  99152] ###
+   1 decades [ 716726] #######################
+   2 decades [  62908] ##
+   3 decades [  10589] 
+   4 decades [   6675] 
+   5 decades [   8719] 
+   6 decades [   3521] 
+   7 decades [   3208] 
+   8 decades [1523835] ##################################################
+   9 decades [ 683908] ######################
+  10 decades [  23001] 
+  11 decades [   6409] 
+  12 decades [   5685] 
+  13 decades [   7860] 
+  14 decades [   5127] 
+  15 decades [   4849] 
+  16 decades [  13305] 
+  17 decades [   3702] 
+  18 decades [   1023] 
+  19 decades [   7922] 
+  20 decades [   7839] 
+  21 decades [     90] 
+  22 decades [    143] 
+  23 decades [    126] 
+  24 decades [     62] 
+  25 decades [     26] 
+  26 decades [     31] 
+  27 decades [      2] 
+  28 decades [     14] 
+  29 decades [      2] 
+  30 decades [      2] 
+  34 decades [      4] 
+  35 decades [      6] 
+  36 decades [     53] 
+  37 decades [     32] 
+  38 decades [     40] 
+  39 decades [     61] 
+  40 decades [      3] 
+  41 decades [      1] 
+  42 decades [      8] 
+  43 decades [      7] 
+
+Product magnitude distribution (posit<32,2> plain factorization):
+  43226708 products recorded, 6176308 exact zeros
+  1e-40  [     28] 
+  1e-39  [     70] 
+  1e-38  [    182] 
+  1e-37  [    336] 
+  1e-36  [     28] 
+  1e-35  [     14] 
+  1e-34  [     56] 
+  1e-33  [     28] 
+  1e-32  [     42] 
+  1e-31  [     28] 
+  1e-29  [     28] 
+  1e-27  [     56] 
+  1e-26  [     56] 
+  1e-25  [     56] 
+  1e-24  [    203] 
+  1e-23  [    294] 
+  1e-22  [  11298] 
+  1e-21  [  10570] 
+  1e-20  [   1134] 
+  1e-19  [  13004] 
+  1e-18  [  12308] 
+  1e-17  [  10549] 
+  1e-16  [  23709] 
+  1e-15  [  15750] 
+  1e-14  [  14098] 
+  1e-13  [   9133] 
+  1e-12  [  40833] 
+  1e-11  [2063517] #####
+  1e-10  [2421499] ######
+  1e-9   [  54344] 
+  1e-8   [  12481] 
+  1e-7   [  17330] 
+  1e-6   [  19645] 
+  1e-5   [  42377] 
+  1e-4   [  36077] 
+  1e-3   [17284510] #############################################
+  1e-2   [19146952] ##################################################
+  1e-1   [1689709] ####
+  1e0    [ 241780] 
+  1e1    [  26950] 
+  1e2    [   4869] 
+  1e3    [    581] 
+  1e4    [    168] 
+  1e5    [     28] 
+
+Product magnitude distribution (posit<32,2> quire factorization):
+  37051464 products recorded, 6176175 exact zeros
+  1e-40  [     24] 
+  1e-39  [     60] 
+  1e-38  [    156] 
+  1e-37  [    288] 
+  1e-36  [     24] 
+  1e-35  [     12] 
+  1e-34  [     48] 
+  1e-33  [     24] 
+  1e-32  [     36] 
+  1e-31  [     24] 
+  1e-29  [     24] 
+  1e-27  [     48] 
+  1e-26  [     48] 
+  1e-25  [     48] 
+  1e-24  [    174] 
+  1e-23  [    252] 
+  1e-22  [   9684] 
+  1e-21  [   9060] 
+  1e-20  [    972] 
+  1e-19  [  11144] 
+  1e-18  [  10552] 
+  1e-17  [   9042] 
+  1e-16  [  20322] 
+  1e-15  [  13500] 
+  1e-14  [  12084] 
+  1e-13  [   7824] 
+  1e-12  [  35004] 
+  1e-11  [1768572] #####
+  1e-10  [2073157] ######
+  1e-9   [  49151] 
+  1e-8   [  10698] 
+  1e-7   [  14852] 
+  1e-6   [  16810] 
+  1e-5   [  36274] 
+  1e-4   [  30992] 
+  1e-3   [14803982] #############################################
+  1e-2   [16421260] ##################################################
+  1e-1   [1410546] ####
+  1e0    [ 246700] 
+  1e1    [  23140] 
+  1e2    [   4186] 
+  1e3    [    498] 
+  1e4    [    144] 
+  1e5    [     24] 
+
+Dynamic range distribution (posit<32,2> plain factorization):
+  4489352 dot products recorded, 18606 single-term, 643994 empty
+   0 decades [ 146105] ###
+   1 decades [1002441] #######################
+   2 decades [  83034] #
+   3 decades [  14016] 
+   4 decades [   8778] 
+   5 decades [  12597] 
+   6 decades [   3718] 
+   7 decades [   3185] 
+   8 decades [2128079] ##################################################
+   9 decades [ 963664] ######################
+  10 decades [  33869] 
+  11 decades [   8958] 
+  12 decades [   7849] 
+  13 decades [  11270] 
+  14 decades [   6811] 
+  15 decades [   6776] 
+  16 decades [  19453] 
+  17 decades [   4452] 
+  18 decades [   1337] 
+  19 decades [  11060] 
+  20 decades [  11011] 
+  21 decades [     35] 
+  22 decades [    210] 
+  23 decades [    182] 
+  24 decades [     70] 
+  25 decades [     21] 
+  26 decades [     49] 
+  28 decades [     21] 
+  34 decades [      7] 
+  35 decades [      7] 
+  36 decades [     70] 
+  37 decades [     56] 
+  38 decades [     49] 
+  39 decades [     91] 
+  42 decades [     14] 
+  43 decades [      7] 
+
+Dynamic range distribution (posit<32,2> quire factorization):
+  3848016 dot products recorded, 15948 single-term, 643994 empty
+   0 decades [ 125236] ###
+   1 decades [ 859232] #######################
+   2 decades [  71172] #
+   3 decades [  12035] 
+   4 decades [   7513] 
+   5 decades [  10786] 
+   6 decades [   3188] 
+   7 decades [   2730] 
+   8 decades [1823048] ##################################################
+   9 decades [ 826954] ######################
+  10 decades [  29094] 
+  11 decades [   7680] 
+  12 decades [   6726] 
+  13 decades [   9660] 
+  14 decades [   5838] 
+  15 decades [   5808] 
+  16 decades [  16674] 
+  17 decades [   3810] 
+  18 decades [   1152] 
+  19 decades [   9480] 
+  20 decades [   9438] 
+  21 decades [     30] 
+  22 decades [    180] 
+  23 decades [    156] 
+  24 decades [     60] 
+  25 decades [     18] 
+  26 decades [     42] 
+  28 decades [     18] 
+  34 decades [      6] 
+  35 decades [      6] 
+  36 decades [     60] 
+  37 decades [     48] 
+  38 decades [     42] 
+  39 decades [     78] 
+  42 decades [     12] 
+  43 decades [      6] 
+
+Working-precision residual: plain vs quire summation:
+type          |   plain res  plain ferr    it |   quire res  quire ferr    it
+--------------------------------------------------------------------------
+posit<32,2>   |   7.567e-01   9.920e-02     7 |   4.869e-03   1.253e-03     5
+posit<64,3>   |   1.142e-08   3.868e-08     1 |   1.142e-08   3.868e-08     1
+
+Product magnitude distribution (posit<32,2> plain residual):
+  43226708 products recorded, 6176308 exact zeros
+  1e-37  [    616] 
+  1e-35  [     42] 
+  1e-34  [     84] 
+  1e-32  [     42] 
+  1e-31  [     28] 
+  1e-29  [     28] 
+  1e-27  [     56] 
+  1e-26  [     56] 
+  1e-25  [     56] 
+  1e-24  [    203] 
+  1e-23  [    294] 
+  1e-22  [  11298] 
+  1e-21  [  10570] 
+  1e-20  [   1134] 
+  1e-19  [  12992] 
+  1e-18  [  12587] 
+  1e-17  [  10282] 
+  1e-16  [  23709] 
+  1e-15  [  15750] 
+  1e-14  [  14098] 
+  1e-13  [   9139] 
+  1e-12  [  40827] 
+  1e-11  [2029185] #####
+  1e-10  [2450360] ######
+  1e-9   [  59815] 
+  1e-8   [  12481] 
+  1e-7   [  17346] 
+  1e-6   [  19629] 
+  1e-5   [  42333] 
+  1e-4   [  36121] 
+  1e-3   [17242355] #############################################
+  1e-2   [19114676] ##################################################
+  1e-1   [1769140] ####
+  1e0    [ 236764] 
+  1e1    [  26966] 
+  1e2    [   4869] 
+  1e3    [    581] 
+  1e4    [    168] 
+  1e5    [     28] 
+
+Product magnitude distribution (posit<32,2> quire residual):
+  30876220 products recorded, 6176042 exact zeros
+  1e-37  [    440] 
+  1e-35  [     30] 
+  1e-34  [     60] 
+  1e-32  [     30] 
+  1e-31  [     20] 
+  1e-29  [     20] 
+  1e-27  [     40] 
+  1e-26  [     40] 
+  1e-25  [     40] 
+  1e-24  [    145] 
+  1e-23  [    210] 
+  1e-22  [   8070] 
+  1e-21  [   7550] 
+  1e-20  [    810] 
+  1e-19  [   9280] 
+  1e-18  [   8800] 
+  1e-17  [   7535] 
+  1e-16  [  16935] 
+  1e-15  [  11250] 
+  1e-14  [  10070] 
+  1e-13  [   6530] 
+  1e-12  [  29160] 
+  1e-11  [1473993] #####
+  1e-10  [1718625] ######
+  1e-9   [  49782] 
+  1e-8   [   8915] 
+  1e-7   [  12388] 
+  1e-6   [  14057] 
+  1e-5   [  30189] 
+  1e-4   [  25833] 
+  1e-3   [12349838] #############################################
+  1e-2   [13673196] ##################################################
+  1e-1   [1204581] ####
+  1e0    [ 174499] 
+  1e1    [  19249] 
+  1e2    [   3455] 
+  1e3    [    415] 
+  1e4    [    120] 
+  1e5    [     20] 
+
+Dynamic range distribution (posit<32,2> plain residual):
+  4489352 dot products recorded, 18606 single-term, 643994 empty
+   0 decades [ 146056] ###
+   1 decades [1002494] #######################
+   2 decades [  83030] #
+   3 decades [  14069] 
+   4 decades [   8725] 
+   5 decades [  12597] 
+   6 decades [   3718] 
+   7 decades [   3185] 
+   8 decades [2143781] ##################################################
+   9 decades [ 948180] ######################
+  10 decades [  33651] 
+  11 decades [   8956] 
+  12 decades [   7851] 
+  13 decades [  11270] 
+  14 decades [   6811] 
+  15 decades [   6776] 
+  16 decades [  19453] 
+  17 decades [   4487] 
+  18 decades [   1302] 
+  19 decades [  11060] 
+  20 decades [  11011] 
+  21 decades [     35] 
+  22 decades [    203] 
+  23 decades [    189] 
+  24 decades [     70] 
+  25 decades [     21] 
+  26 decades [     49] 
+  28 decades [     21] 
+  35 decades [     14] 
+  36 decades [    168] 
+  37 decades [     56] 
+  38 decades [     56] 
+  39 decades [      7] 
+
+Dynamic range distribution (posit<32,2> quire residual):
+  3206680 dot products recorded, 13290 single-term, 643994 empty
+   0 decades [ 104361] ###
+   1 decades [ 716029] #######################
+   2 decades [  59310] #
+   3 decades [  10049] 
+   4 decades [   6221] 
+   5 decades [   9007] 
+   6 decades [   2658] 
+   7 decades [   2275] 
+   8 decades [1533409] ##################################################
+   9 decades [ 675156] ######################
+  10 decades [  24015] 
+  11 decades [   6395] 
+  12 decades [   5610] 
+  13 decades [   8050] 
+  14 decades [   4865] 
+  15 decades [   4840] 
+  16 decades [  13895] 
+  17 decades [   3205] 
+  18 decades [    930] 
+  19 decades [   7900] 
+  20 decades [   7865] 
+  21 decades [     25] 
+  22 decades [    145] 
+  23 decades [    135] 
+  24 decades [     50] 
+  25 decades [     15] 
+  26 decades [     35] 
+  28 decades [     15] 
+  35 decades [     10] 
+  36 decades [    120] 
+  37 decades [     40] 
+  38 decades [     40] 
+  39 decades [      5] 
+
+Product magnitude distribution (posit<64,3> plain residual):
+  6175244 products recorded, 6175510 exact zeros
+  1e-40  [      4] 
+  1e-39  [     10] 
+  1e-38  [     26] 
+  1e-37  [     48] 
+  1e-36  [      4] 
+  1e-35  [      2] 
+  1e-34  [      8] 
+  1e-33  [      4] 
+  1e-32  [      6] 
+  1e-31  [      4] 
+  1e-29  [      4] 
+  1e-27  [      8] 
+  1e-26  [      8] 
+  1e-25  [      8] 
+  1e-24  [     29] 
+  1e-23  [     42] 
+  1e-22  [   1614] 
+  1e-21  [   1510] 
+  1e-20  [    162] 
+  1e-19  [   1856] 
+  1e-18  [   1760] 
+  1e-17  [   1507] 
+  1e-16  [   3387] 
+  1e-15  [   2250] 
+  1e-14  [   2014] 
+  1e-13  [   1304] 
+  1e-12  [   5834] 
+  1e-11  [ 294762] #####
+  1e-10  [ 345307] ######
+  1e-9   [   8411] 
+  1e-8   [   1783] 
+  1e-7   [   2475] 
+  1e-6   [   2802] 
+  1e-5   [   6041] 
+  1e-4   [   5169] 
+  1e-3   [2467330] #############################################
+  1e-2   [2736878] ##################################################
+  1e-1   [ 234566] ####
+  1e0    [  41642] 
+  1e1    [   3855] 
+  1e2    [    699] 
+  1e3    [     83] 
+  1e4    [     24] 
+  1e5    [      4] 
+
+Product magnitude distribution (posit<64,3> quire residual):
+  6175244 products recorded, 6175510 exact zeros
+  1e-40  [      4] 
+  1e-39  [     10] 
+  1e-38  [     26] 
+  1e-37  [     48] 
+  1e-36  [      4] 
+  1e-35  [      2] 
+  1e-34  [      8] 
+  1e-33  [      4] 
+  1e-32  [      6] 
+  1e-31  [      4] 
+  1e-29  [      4] 
+  1e-27  [      8] 
+  1e-26  [      8] 
+  1e-25  [      8] 
+  1e-24  [     29] 
+  1e-23  [     42] 
+  1e-22  [   1614] 
+  1e-21  [   1510] 
+  1e-20  [    162] 
+  1e-19  [   1856] 
+  1e-18  [   1760] 
+  1e-17  [   1507] 
+  1e-16  [   3387] 
+  1e-15  [   2250] 
+  1e-14  [   2014] 
+  1e-13  [   1304] 
+  1e-12  [   5834] 
+  1e-11  [ 294762] #####
+  1e-10  [ 345307] ######
+  1e-9   [   8411] 
+  1e-8   [   1783] 
+  1e-7   [   2475] 
+  1e-6   [   2802] 
+  1e-5   [   6041] 
+  1e-4   [   5169] 
+  1e-3   [2467330] #############################################
+  1e-2   [2736878] ##################################################
+  1e-1   [ 234566] ####
+  1e0    [  41642] 
+  1e1    [   3855] 
+  1e2    [    699] 
+  1e3    [     83] 
+  1e4    [     24] 
+  1e5    [      4] 
+
+Dynamic range distribution (posit<64,3> plain residual):
+  641336 dot products recorded, 2658 single-term, 643994 empty
+   0 decades [  20873] ###
+   1 decades [ 143205] #######################
+   2 decades [  11862] #
+   3 decades [   2009] 
+   4 decades [   1249] 
+   5 decades [   1798] 
+   6 decades [    531] 
+   7 decades [    455] 
+   8 decades [ 303733] ##################################################
+   9 decades [ 137933] ######################
+  10 decades [   4850] 
+  11 decades [   1280] 
+  12 decades [   1121] 
+  13 decades [   1610] 
+  14 decades [    973] 
+  15 decades [    968] 
+  16 decades [   2779] 
+  17 decades [    635] 
+  18 decades [    192] 
+  19 decades [   1580] 
+  20 decades [   1573] 
+  21 decades [      5] 
+  22 decades [     30] 
+  23 decades [     26] 
+  24 decades [     10] 
+  25 decades [      3] 
+  26 decades [      7] 
+  28 decades [      3] 
+  34 decades [      1] 
+  35 decades [      1] 
+  36 decades [     10] 
+  37 decades [      8] 
+  38 decades [      7] 
+  39 decades [     13] 
+  42 decades [      2] 
+  43 decades [      1] 
+
+Dynamic range distribution (posit<64,3> quire residual):
+  641336 dot products recorded, 2658 single-term, 643994 empty
+   0 decades [  20873] ###
+   1 decades [ 143205] #######################
+   2 decades [  11862] #
+   3 decades [   2009] 
+   4 decades [   1249] 
+   5 decades [   1798] 
+   6 decades [    531] 
+   7 decades [    455] 
+   8 decades [ 303733] ##################################################
+   9 decades [ 137933] ######################
+  10 decades [   4850] 
+  11 decades [   1280] 
+  12 decades [   1121] 
+  13 decades [   1610] 
+  14 decades [    973] 
+  15 decades [    968] 
+  16 decades [   2779] 
+  17 decades [    635] 
+  18 decades [    192] 
+  19 decades [   1580] 
+  20 decades [   1573] 
+  21 decades [      5] 
+  22 decades [     30] 
+  23 decades [     26] 
+  24 decades [     10] 
+  25 decades [      3] 
+  26 decades [      7] 
+  28 decades [      3] 
+  34 decades [      1] 
+  35 decades [      1] 
+  36 decades [     10] 
+  37 decades [      8] 
+  38 decades [      7] 
+  39 decades [     13] 
+  42 decades [      2] 
+  43 decades [      1] 
+
+Wrote csv/product_magnitude_histogram.csv
+Wrote csv/dynamic_range_histogram.csv

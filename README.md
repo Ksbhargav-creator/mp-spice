@@ -230,7 +230,7 @@ mode, not obviously the same mechanism as `rajat13`/`rajat19`.
 
 ### 5. Future direction
 
-The dynamic-range-vs-accuracy question  argues for a **per-row
+The dynamic-range-vs-accuracy question argues for a **per-row
 diagnostic**, not more matrices at the same aggregate granularity: pair each
 row's *own* dynamic range against that row's *own* residual contribution,
 rather than summarizing a whole matrix into one mean/max. `rajat13` may have
