@@ -244,6 +244,49 @@ fixed code before that number can be trusted. `rajat03` needs the same
 treatment (too slow to finish in the sandbox this fix was verified in).
 Both are the immediate next step, not new diagnostics.
 
+### 6. Logs and raw data
+
+Everything the tables above are built from is checked into `logs/` and
+`csv/`, for anyone who wants to go past the summarized numbers.
+
+**`logs/*.log`** — one full stdout transcript per matrix from
+`klu_quire_IR_study` (via `scripts/run_matrix_sweep.sh` or a direct
+invocation), e.g. `logs/rajat13_sweep.log`, `logs/rajat30_run.log`. Each
+contains both experiments' accuracy tables in full, plus the ASCII
+product-magnitude and dynamic-range histograms for every type/variant
+combination — the raw evidence behind every summarized number in this doc.
+
+**`csv/product_magnitude_histogram.csv`, `csv/dynamic_range_histogram.csv`**
+— the same data the app writes out per run (`Matrix,n,Experiment,Type,Variant,...`),
+appended across every run against that matrix. Written in append mode, so
+re-running a matrix multiple times duplicates rows — `csv/normalize_dynamic_range.py`
+drops exact-duplicate rows on read, but see the caveat below.
+
+**`csv/normalize_dynamic_range.py` → `dynamic_range_normalized.csv`,
+`dynamic_range_summary.csv`** — normalizes the raw histogram into
+percentages per group, and computes weighted Mean/Median/P90/Max per
+`(Matrix, n, Experiment, Type, Variant)` group. `dynamic_range_summary.csv`
+is what the Section 4 dataset table above is built from.
+
+**`csv/plot_dynamic_range.py`** — renders the normalized data as grouped bar
+charts, one PNG per `(Matrix, Experiment, Type)` (e.g.
+`dynamic_range_rajat13_WorkingPrecisionResidualIR_posit32_2.png`).
+
+**`csv/lu_accumulation.csv`, `csv/residual_accumulation.csv`,
+`csv/quire_effectiveness.csv`** — earlier accumulation-length and
+Standard-IR-vs-Residual-IR data, from before the app was pared down (Section
+3's stripped instrumentation) and before the Table 2 double-casting fix.
+Source data for the "historical" tables flagged in Section 1 — kept for
+reference, not representative of the current (fixed) code.
+
+**Known data-hygiene issue:** the Tier 1 re-run against the fixed code
+(Section 1/4 above) appended fresh rows into the *same* `csv/` files
+alongside the pre-fix rows, under the same grouping keys. The dedup step
+only drops exact-duplicate rows, so it will **not** catch this — pre-fix and
+post-fix runs produce genuinely different distributions under the same key.
+`csv/dynamic_range_summary.csv` should not be trusted until `csv/`'s two raw
+histogram files are cleared and the sweep is re-run fresh end to end.
+
 ---
 
 ## Build
