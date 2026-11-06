@@ -169,7 +169,7 @@ inline std::vector<double> scale_rhs(const std::vector<double>& b, double mu) {
 }
 
 /// Residual ||A x - b||_inf, computed in double regardless of the solve type.
-inline double residual_inf(const DSparse& A,
+inline double +_inf(const DSparse& A,
                            const std::vector<double>& x,
                            const std::vector<double>& b) {
     const auto& rp = A.ref_major();

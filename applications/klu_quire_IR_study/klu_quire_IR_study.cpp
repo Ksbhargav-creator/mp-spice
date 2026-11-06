@@ -287,6 +287,47 @@ int main(int argc, char** argv) {
         print_dynamic_range_histogram(row.type + " quire residual", row.quire_range);
     }
 
+    // --- 3. IEEE baselines (float/double) for comparison against posits.
+    //        "wide" column = same algorithm with a wider-than-working accumulator
+    //        (float -> double accumulator), the IEEE analogue of the quire.
+    //        double has no wider type here, so its wide column is "-".
+    //        These rows are NOT exported to the CSVs (stats reset around them).
+    auto ieee_cell = [](const sw::mp_spice::solve_stats& s) {
+        if (s.ok) std::printf(" %11.3e %11.3e %5d", s.residual, s.fwd_error, s.iters);
+        else      std::printf(" %11s %11s %5s", "FAIL", "-", "-");
+    };
+    auto ieee_na = []() { std::printf(" %11s %11s %5s", "-", "-", "-"); };
+
+    std::printf("\nIEEE baseline: native KLU + double-residual iterative refinement (factor in IEEE):\n");
+    std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
+                "type", "plain res", "plain ferr", "it", "wide res", "wide ferr", "it");
+    std::printf("%s\n", std::string(74, '-').c_str());
+    {
+        sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
+        auto fp = sw::mp_spice::mixed_refine_with_histogram<float>(A, b, ones);
+        auto fw = sw::mp_spice::mixed_refine_with_histogram<float, double>(A, b, ones);
+        auto dp = sw::mp_spice::mixed_refine_with_histogram<double>(A, b, ones);
+        std::printf("%-13s |", "float");  ieee_cell(fp); std::printf(" |"); ieee_cell(fw); std::printf("\n");
+        std::printf("%-13s |", "double"); ieee_cell(dp); std::printf(" |"); ieee_na();      std::printf("\n");
+    }
+
+    std::printf("\nIEEE baseline: working-precision residual: plain vs wide accumulator:\n");
+    std::printf("%-13s | %11s %11s %5s | %11s %11s %5s\n",
+                "type", "plain res", "plain ferr", "it", "wide res", "wide ferr", "it");
+    std::printf("%s\n", std::string(74, '-').c_str());
+    {
+        sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
+        auto fp = sw::mp_spice::working_precision_refine_with_histogram<float>(A, b, ones);
+        auto fw = sw::mp_spice::working_precision_refine_with_histogram<float, double>(A, b, ones);
+        auto dp = sw::mp_spice::working_precision_refine_with_histogram<double>(A, b, ones);
+        std::printf("%-13s |", "float");  ieee_cell(fp); std::printf(" |"); ieee_cell(fw); std::printf("\n");
+        std::printf("%-13s |", "double"); ieee_cell(dp); std::printf(" |"); ieee_na();      std::printf("\n");
+        sw::mp_spice::product_magnitude_stats.reset();
+        sw::mp_spice::dynamic_range_stats.reset();
+    }
+
     // CSV export (csv/product_magnitude_histogram.csv, matching the existing
     // project convention -- see csv/lu_accumulation.csv etc.).
     const std::string matrix_name = matrix_name_from_path(mtx);

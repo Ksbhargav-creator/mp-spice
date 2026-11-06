@@ -1,0 +1,78 @@
+# Weekly (not nightly -- this project doesn't change daily, so a schedule's
+# only real job here is catching *environment* drift: a dependency bump,
+# compiler/base-image update, MTL5 pin change -- not code regressions, which
+# the push-triggered Job (job-regression-fast.yaml) already covers faster).
+# Runs the full known-good matrix set plus the expected-load-failure set, so
+# EXPECTED_LOAD_FAILURES in ci/regression_check.py stays honest against
+# reality instead of silently going stale.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mp-spice-regression-full
+  namespace: mp-spice
+spec:
+  schedule: "0 6 * * 1"  # Monday 06:00 UTC
+  concurrencyPolicy: Forbid  # rajat30 alone can run long; never overlap two full sweeps
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200  # 2h ceiling -- rajat30-class matrices need real wall clock,
+                                   # but a runaway pod shouldn't burn the cluster's budget forever
+      template:
+        metadata:
+          labels:
+            app: mp-spice-regression
+            tier: full
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: regression
+              image: mp-spice:REPLACE_WITH_IMAGE_TAG
+              command:
+                - /opt/mp-spice/run_regression.sh
+                - rajat04
+                - rajat05
+                - rajat11
+                - rajat12
+                - rajat13
+                - rajat14
+                - rajat15
+                - rajat16
+                - rajat17
+                - rajat19
+                - add20
+                - add32
+                - rajat30
+                - rajat01   # expected to fail to load -- proves the expected-failure list is still accurate
+                - rajat07
+                - rajat08
+                - rajat09
+                - rajat10
+              env:
+                - name: DATA_DIR
+                  value: /data
+                - name: HISTORY_DIR
+                  value: /history
+                - name: GIT_SHA
+                  value: "REPLACE_WITH_IMAGE_TAG"
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: "4Gi"     # rajat30 is 6.2M nonzeros -- size for the largest matrix in the set
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+              volumeMounts:
+                - name: matrix-cache
+                  mountPath: /data
+                - name: regression-history
+                  mountPath: /history
+          volumes:
+            - name: matrix-cache
+              persistentVolumeClaim:
+                claimName: mp-spice-matrix-cache
+            - name: regression-history
+              persistentVolumeClaim:
+                claimName: mp-spice-regression-history

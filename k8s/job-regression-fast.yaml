@@ -1,0 +1,58 @@
+# Fast regression check, meant to be triggered by CI on push/PR (e.g. a
+# GitHub Actions step that does `kubectl create -f - --wait` against this
+# template with the image tag substituted, or a webhook-driven controller --
+# not a schedule). Runs only rajat11/rajat14 (sub-second, always load
+# successfully) so it returns fast enough to be useful as PR feedback.
+#
+# This is templated as a Job, not a CronJob -- a CronJob is the wrong
+# primitive here (it needs to fire on code change, not on a clock). Give
+# each invocation a unique `metadata.name` (e.g. suffix with the git SHA)
+# since Jobs are not automatically replaced.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mp-spice-regression-fast   # append -${GIT_SHA} at submission time
+  namespace: mp-spice
+  labels:
+    app: mp-spice-regression
+    tier: fast
+spec:
+  backoffLimit: 1   # a real invariant violation shouldn't be retried into passing
+  ttlSecondsAfterFinished: 86400  # keep pod/logs around for a day for a human to read
+  template:
+    metadata:
+      labels:
+        app: mp-spice-regression
+        tier: fast
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: regression
+          image: mp-spice:REPLACE_WITH_IMAGE_TAG  # e.g. mp-spice:quire-instrumentation-<sha>
+          command: ["/opt/mp-spice/run_regression.sh", "rajat11", "rajat14"]
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: HISTORY_DIR
+              value: /history
+            - name: GIT_SHA
+              value: "REPLACE_WITH_IMAGE_TAG"  # propagate the same tag into the history CSV
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: matrix-cache
+              mountPath: /data
+            - name: regression-history
+              mountPath: /history
+      volumes:
+        - name: matrix-cache
+          persistentVolumeClaim:
+            claimName: mp-spice-matrix-cache
+        - name: regression-history
+          persistentVolumeClaim:
+            claimName: mp-spice-regression-history

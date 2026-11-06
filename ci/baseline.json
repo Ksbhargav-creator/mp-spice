@@ -1,0 +1,132 @@
+{
+  "rajat04": {
+    "posit<32,2>": {
+      "plain_ferr": 0.004387,
+      "quire_ferr": 0.0001008
+    },
+    "posit<64,3>": {
+      "plain_ferr": 9.459e-12,
+      "quire_ferr": 9.459e-12
+    }
+  },
+  "rajat05": {
+    "posit<32,2>": {
+      "plain_ferr": 2.575e-05,
+      "quire_ferr": 1.087e-05
+    },
+    "posit<64,3>": {
+      "plain_ferr": 2.711e-13,
+      "quire_ferr": 2.711e-13
+    }
+  },
+  "rajat11": {
+    "posit<32,2>": {
+      "plain_ferr": 4.098e-06,
+      "quire_ferr": 2.123e-06
+    },
+    "posit<64,3>": {
+      "plain_ferr": 2.185e-13,
+      "quire_ferr": 2.185e-13
+    }
+  },
+  "rajat12": {
+    "posit<32,2>": {
+      "plain_ferr": 0.0003833,
+      "quire_ferr": 5.446e-06
+    },
+    "posit<64,3>": {
+      "plain_ferr": 3.431e-12,
+      "quire_ferr": 3.431e-12
+    }
+  },
+  "rajat13": {
+    "posit<32,2>": {
+      "plain_ferr": 0.07833,
+      "quire_ferr": 0.004233
+    },
+    "posit<64,3>": {
+      "plain_ferr": 2.273e-10,
+      "quire_ferr": 2.273e-10
+    }
+  },
+  "rajat14": {
+    "posit<32,2>": {
+      "plain_ferr": 0.000927,
+      "quire_ferr": 5.272e-05
+    },
+    "posit<64,3>": {
+      "plain_ferr": 3.39e-12,
+      "quire_ferr": 3.39e-12
+    }
+  },
+  "rajat19": {
+    "posit<32,2>": {
+      "plain_ferr": 0.1047,
+      "quire_ferr": 0.05896
+    },
+    "posit<64,3>": {
+      "plain_ferr": 5.445e-11,
+      "quire_ferr": 5.445e-11
+    }
+  },
+  "add20": {
+    "posit<32,2>": {
+      "plain_ferr": 1.452e-05,
+      "quire_ferr": 6.363e-06
+    },
+    "posit<64,3>": {
+      "plain_ferr": 1.419e-13,
+      "quire_ferr": 1.419e-13
+    }
+  },
+  "add32": {
+    "posit<32,2>": {
+      "plain_ferr": 5.439e-07,
+      "quire_ferr": 2.794e-07
+    },
+    "posit<64,3>": {
+      "plain_ferr": 3.331e-15,
+      "quire_ferr": 3.331e-15
+    }
+  },
+  "rajat15": {
+    "posit<32,2>": {
+      "plain_ferr": 1.603,
+      "quire_ferr": 0.01227
+    },
+    "posit<64,3>": {
+      "plain_ferr": 2.12e-10,
+      "quire_ferr": 2.12e-10
+    }
+  },
+  "rajat16": {
+    "posit<32,2>": {
+      "plain_ferr": 0.07319,
+      "quire_ferr": 0.05176
+    },
+    "posit<64,3>": {
+      "plain_ferr": 3.231e-09,
+      "quire_ferr": 3.231e-09
+    }
+  },
+  "rajat17": {
+    "posit<32,2>": {
+      "plain_ferr": 3.433,
+      "quire_ferr": 19.4
+    },
+    "posit<64,3>": {
+      "plain_ferr": 2.916e-08,
+      "quire_ferr": 2.916e-08
+    }
+  },
+  "rajat30": {
+    "posit<32,2>": {
+      "plain_ferr": 0.08705,
+      "quire_ferr": 0.00128
+    },
+    "posit<64,3>": {
+      "plain_ferr": 3.868e-08,
+      "quire_ferr": 3.868e-08
+    }
+  }
+}

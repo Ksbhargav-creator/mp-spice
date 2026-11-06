@@ -1,0 +1,35 @@
+# Shared, persistent cache for downloaded SuiteSparse matrices and the
+# regression-history CSV. Matrices are git-ignored by project policy (see
+# CLAUDE.md: "never commit matrices"), and a Job/CronJob pod's own
+# filesystem is ephemeral -- without this, every run re-downloads rajat30's
+# 6.2M-nonzero file from scratch, and every run's regression_history.csv rows
+# vanish the moment the pod terminates.
+#
+# ReadWriteMany is requested because both the fast Job and the weekly
+# CronJob may need to read/write concurrently; if your storage class doesn't
+# support RWX (many don't, e.g. most default cloud block storage), fall back
+# to ReadWriteOnce -- the CronJob's `concurrencyPolicy: Forbid` plus not
+# running both workloads at once is enough at this project's scale.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mp-spice-matrix-cache
+  namespace: mp-spice
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi  # circuit5M/FullChip-class matrices are multiple GB each if ever added
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mp-spice-regression-history
+  namespace: mp-spice
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi  # it's a CSV of scalars -- this will last years

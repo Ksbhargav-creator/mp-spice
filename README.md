@@ -112,8 +112,11 @@ forward error:
 
 | Matrix | n | Forward Error (plain) | Iterations | Forward Error (quire) | Iterations | Quire improvement |
 |--------|---|------------------------|------------|-------------------------|------------|--------------------|
+| rajat17 | 94294 | 3.433e+00 | 5 | 1.940e+01 | 8 | **0.18x — quire is worse** |
+| rajat15 | 37261 | 1.603e+00 | 10 | 1.227e-02 | 6 | **130.6x** |
 | rajat19 | 1157 | 1.047e-01 | 8 | 5.896e-02 | 5 | 1.8x |
 | rajat13 | 7598 | 7.833e-02 | 7 | 4.233e-03 | 6 | 18.5x |
+| rajat16 | 94294 | 7.319e-02 | 7 | 5.176e-02 | 14 | 1.4x |
 | rajat04 | 1041 | 4.387e-03 | 8 | 1.008e-04 | 5 | 43.5x |
 | rajat14 | 180  | 9.270e-04 | 7 | 5.272e-05 | 5 | 17.6x |
 | rajat12 | 1879 | 3.833e-04 | 7 | 5.446e-06 | 5 | 70.4x |
@@ -123,8 +126,44 @@ forward error:
 | add32   | 4960 | 5.439e-07 | 9 | 2.794e-07 | 5 | 1.9x |
 | rajat03 | 7602 | pending (local re-run) | — | pending | — | — |
 
-**Quire shows a real, consistent forward-error improvement on every
-matrix re-run** — 1.8x to 70x.
+**rajat17 breaks the pattern.** Every matrix up to this point showed quire
+helping, even if only marginally (1.8x at worst). rajat17 is the first
+genuine counterexample: quire's forward error is *5.7x worse* than plain's,
+and it needs more iterations to get there (8 vs. 5). rajat16 — same
+dimensions as rajat17 (94,294 rows), from the same follow-up sweep — shows
+only a marginal 1.4x gain while taking twice the iterations (14 vs. 7).
+rajat15, by contrast, shows the single largest quire improvement in the
+whole dataset (130.6x). All three are discussed against their dynamic-range
+data in Section 4, since the obvious reading (worse dynamic range → bigger
+counterexample) does not hold cleanly here.
+
+`rajat07`, `rajat08`, `rajat09`, and `rajat10` were attempted in the same
+sweep and all crashed identically to `rajat01` —
+`unsupported Matrix Market field 'pattern'`, the same reader limitation, not
+a result. Excluded from every table in this document.
+
+**rajat30 (large-scale, 643,994 rows / 6.2M nonzeros)** — reported separately
+since it's two orders of magnitude larger than the rest of the Tier 1 set:
+
+| Matrix | n | Forward Error (plain) | Iterations | Forward Error (quire) | Iterations | Quire improvement |
+|--------|---|------------------------|------------|-------------------------|------------|--------------------|
+| rajat30 | 643994 | 8.705e-02 | 7 | 1.280e-03 | 6 | 68x |
+
+Confirms the effect holds at scale, not just on the small Tier 1 matrices —
+though the gain here (68x) is somewhat below rajat30's original, pre-fix
+measurement (~79x), since that earlier number was itself an artifact of the
+double-casting bug. One caveat specific to this run: quire's *residual*
+actually got worse post-fix (4.9e-03 → 1.6e-02) even though forward error
+barely moved, so residual and forward error decoupled slightly once the
+computation was made genuinely precision-honest — residual alone isn't a
+fully reliable accuracy proxy here.
+
+**Quire shows a real forward-error improvement on most matrices re-run** —
+1.8x to 130.6x across Tier 1, and 68x confirmed at rajat30's scale — but this
+is no longer a universal claim: rajat17 is a confirmed counterexample where
+quire makes forward error worse (0.18x). "Quire consistently helps residual
+accumulation" should be read as "usually, substantially" rather than
+"always" going forward.
 
 Accumulation length (median number of terms per residual dot product) — from
 an earlier build; `klu_quire_IR_study` no longer prints this directly
@@ -184,21 +223,26 @@ well-conditioned to produce a real pass/fail contrast.
 
 ### 4. Dataset results (Tier 1 sweep)
 
-First real pass/fail dataset: 10 SuiteSparse circuit matrices (135–7,602
-rows), run through both algorithms via `scripts/run_matrix_sweep.sh`,
-normalized with `csv/normalize_dynamic_range.py`. `rajat01` is excluded — it
-crashed on load (`unsupported Matrix Market field 'pattern'`, a reader
-limitation, not a result).
+First real pass/fail dataset: SuiteSparse circuit matrices, run through both
+algorithms via `scripts/run_matrix_sweep.sh`, normalized with
+`csv/normalize_dynamic_range.py`. `rajat01`, `rajat07`, `rajat08`, `rajat09`,
+and `rajat10` are all excluded — every one of them crashes on load
+(`unsupported Matrix Market field 'pattern'`, a reader limitation, not a
+result).
 
 Sorted worst-to-best by Table 2 (`posit<32,2>`, plain) forward error, against
-that same run's dynamic-range mean/max. Re-run with the Table 2 fix (see
-above); `rajat03`'s dynamic range is unaffected by that fix (Table 1-derived)
+that same run's dynamic-range mean/max (`posit<32,2>`, plain variant).
+`rajat15`, `rajat16`, and `rajat17` are new additions from a follow-up sweep;
+`rajat03`'s dynamic range is unaffected by the Table 2 fix (Table 1-derived)
 but its Table 2 forward error is still pending a local re-run:
 
 | Matrix | n | Table 2 fwd err (plain) | Table 2 fwd err (quire) | Dyn. range Mean / Max |
 |--------|---|---------------------------|----------------------------|------------------------|
+| rajat17 | 94294 | 3.433e+00 | 1.940e+01 | 7.08 / 38 |
+| rajat15 | 37261 | 1.603e+00 | 1.227e-02 | 3.20 / 20 |
 | rajat19 | 1157 | 1.047e-01 | 5.896e-02 | 1.78 / 21 |
 | rajat13 | 7598 | 7.833e-02 | 4.233e-03 | 1.32 / 7 |
+| rajat16 | 94294 | 7.319e-02 | 5.176e-02 | 20.64 / 38 |
 | rajat04 | 1041 | 4.387e-03 | 1.008e-04 | 2.22 / 8 |
 | rajat14 | 180  | 9.270e-04 | 5.272e-05 | 1.81 / 8 |
 | rajat12 | 1879 | 3.833e-04 | 5.446e-06 | 2.13 / 7 |
@@ -208,23 +252,48 @@ but its Table 2 forward error is still pending a local re-run:
 | add32   | 4960 | 5.439e-07 | 2.794e-07 | 3.12 / 34 |
 | rajat03 | 7602 | pending | pending | 8.93 / 12 |
 
-**The dynamic-range-predicts-accuracy question is still not clean.**
-`rajat19` is now unambiguously the worst matrix in the set and also has the
-highest dynamic-range max (21) among everything but `add32` — consistent
-with the hypothesis. But `rajat13` is nearly as bad with a max of only 7, and
-`add32` still has the *widest* dynamic range of the whole set (34) with the
-*best* accuracy. One matrix-wide summary number (mean or max) still doesn't
-cleanly separate real failures from real passes.
+**rajat30** (643,994 rows — reported separately, ~7x larger than rajat16/17
+and two orders of magnitude larger than the rest of this table):
 
-**The plain-vs-quire question, however, is no longer ambiguous.** With the
-Table 2 double-cast bug fixed, quire improves forward error on every single
-matrix re-run — 1.8x to 70x, see the residual-accumulation table above. The
-original "no quire gain" conclusion for this experiment was an artifact of
-the bug, not a real finding.
+| Matrix | n | Table 2 fwd err (plain) | Table 2 fwd err (quire) | Dyn. range Mean / Max |
+|--------|---|---------------------------|----------------------------|------------------------|
+| rajat30 | 643994 | 8.705e-02 | 1.280e-03 | 6.41 / 39 |
+
+rajat30 sits close to rajat16/rajat19 on both forward error and dynamic
+range, but behaves like the "quire clearly helps" majority (68x) rather than
+like rajat16/rajat17 despite comparable or wider dynamic range — one more
+data point against dynamic range alone being the deciding factor, and a
+reason the per-row diagnostic (Section 5) should probably include rajat30
+alongside rajat16/rajat17 once it exists.
+
+**The dynamic-range-predicts-accuracy question is now actively contradicted,
+not just unclean.** `rajat16` has by far the widest dynamic range in the
+entire dataset (mean 20.64, more than 6x the next-highest mean) and its
+`ProductMagnitudeStats` show genuine bimodality — a dominant cluster at 1e-3
+and a second real cluster at 1e-32/1e-33 — the exact catastrophic-cancellation
+signature the hypothesis predicts and that the earlier pooled rajat11/rajat14
+histograms failed to find. Yet quire barely helps it (1.4x, using twice the
+iterations). `rajat17` has a similarly wide tail (max 38) and quire actively
+*hurts* it. Meanwhile `rajat15`, with a comparatively unremarkable dynamic
+range (mean 3.20), gets the single best quire improvement in the whole study
+(130.6x). Dynamic range does not cleanly predict whether quire helps a given
+matrix — if it predicts anything, it may be more about how hard the
+underlying problem is (`rajat16`/`rajat17` also have the worst *plain*
+forward errors in the set) than about whether an exact accumulator fixes it.
+`add32` remains a standing counterexample too — widest range among the
+original Tier 1 set (34) with the best accuracy of that set.
+
+**The plain-vs-quire question is no longer simple either.** With the Table 2
+double-cast bug fixed, quire improves forward error on most matrices re-run —
+1.8x to 130.6x — but `rajat17` is a confirmed counterexample where quire
+makes forward error worse (0.18x, i.e. 5.7x worse). The original "no quire
+gain" conclusion for this experiment was still an artifact of the bug on the
+original Tier 1 set, but "quire always helps" is not the correct replacement
+claim now that a wider matrix sample has been run.
 
 Also worth noting: `add20` fails badly (fwd err ≈ 4.0) but only at
 `posit<16,2>` in Table 1 — a different, precision-width-specific failure
-mode, not obviously the same mechanism as `rajat13`/`rajat19`.
+mode, not obviously the same mechanism as `rajat13`/`rajat19`/`rajat16`/`rajat17`.
 
 ### 5. Future direction
 
@@ -235,12 +304,35 @@ rather than summarizing a whole matrix into one mean/max. `rajat13` may have
 a small number of genuinely bad rows that a matrix-wide summary washes out
 entirely.
 
-`rajat30` (644K rows) already ran once and showed a large quire gain in
-Table 2 (residual res 7.57e-01→4.87e-03, ferr 9.92e-02→1.25e-03) — but that
-run used the pre-fix double-casting code, so it needs to be re-run with the
-fixed code before that number can be trusted. `rajat03` needs the same
-treatment (too slow to finish in the sandbox this fix was verified in).
-Both are the immediate next step, not new diagnostics.
+`rajat30` (644K rows) has now been re-run with the fixed code
+(`logs/rajat30_fixed.log`), confirming the quire gain is real and not an
+artifact of the double-cast bug: `posit<32,2>` forward error goes from
+8.705e-02 (plain) to 1.280e-03 (quire) — **~68x**, versus the pre-fix run's
+~79x (9.920e-02 → 1.253e-03). Plain barely moved; quire's forward error
+barely moved either. The one number that did shift is quire's *residual*
+(4.869e-03 pre-fix → 1.559e-02 post-fix, ~3x worse) despite forward error
+staying flat — residual and forward error decoupled slightly once the
+computation is genuinely precision-honest, worth keeping in mind as a
+caveat rather than a red flag. The dynamic-range distribution is unaffected
+by this fix (it's built from true double-precision term magnitudes,
+independent of accumulator precision) and reproduces the same bimodal shape
+as the original run.
+
+`rajat03` still needs the same re-run treatment (too slow to finish in the
+sandbox this fix was originally verified in) — that's the remaining
+immediate next step, not a new diagnostic.
+
+A follow-up sweep added `rajat15`, `rajat16`, and `rajat17` (94K–37K rows,
+between rajat30 and the rest of Tier 1 in scale). `rajat07`–`rajat10` were
+also attempted and all failed to load, the same `pattern`-field limitation as
+`rajat01`. The three that did run sharpen, rather than resolve, the
+per-row-diagnostic argument above: `rajat16` has the widest dynamic range and
+a genuinely bimodal product-magnitude distribution in the whole dataset, yet
+only a marginal quire gain; `rajat17`, similar in scale and range, is the
+first matrix where quire measurably hurts forward error. A per-row diagnostic
+on these two specifically — rather than more matrices at the current
+aggregate granularity — is now the most likely way to explain why wide
+dynamic range predicted neither's outcome correctly.
 
 ### 6. Logs and raw data
 
@@ -249,10 +341,11 @@ Everything the tables above are built from is checked into `logs/` and
 
 **`logs/*.log`** — one full stdout transcript per matrix from
 `klu_quire_IR_study` (via `scripts/run_matrix_sweep.sh` or a direct
-invocation), e.g. `logs/rajat13_sweep.log`, `logs/rajat30_run.log`. Each
-contains both experiments' accuracy tables in full, plus the ASCII
-product-magnitude and dynamic-range histograms for every type/variant
-combination — the raw evidence behind every summarized number in this doc.
+invocation), e.g. `logs/rajat13_sweep.log`, `logs/rajat30_run.log` (pre-fix),
+`logs/rajat30_fixed.log` (post-fix, current numbers). Each contains both
+experiments' accuracy tables in full, plus the ASCII product-magnitude and
+dynamic-range histograms for every type/variant combination — the raw
+evidence behind every summarized number in this doc.
 
 **`csv/product_magnitude_histogram.csv`, `csv/dynamic_range_histogram.csv`**
 — the same data the app writes out per run (`Matrix,n,Experiment,Type,Variant,...`),
@@ -277,13 +370,15 @@ Standard-IR-vs-Residual-IR data, from before the app was pared down (Section
 Source data for the "historical" tables flagged in Section 1 — kept for
 reference, not representative of the current (fixed) code.
 
-**Known data-hygiene issue:** the Tier 1 re-run against the fixed code
-(Section 1/4 above) appended fresh rows into the *same* `csv/` files
-alongside the pre-fix rows, under the same grouping keys. The dedup step
-only drops exact-duplicate rows, so it will **not** catch this — pre-fix and
-post-fix runs produce genuinely different distributions under the same key.
-`csv/dynamic_range_summary.csv` should not be trusted until `csv/`'s two raw
-histogram files are cleared and the sweep is re-run fresh end to end.
+**Data-hygiene status (resolved for the current sweep):** the pre-fix rows
+that used to sit alongside post-fix rows in `csv/product_magnitude_histogram.csv`
+and `csv/dynamic_range_histogram.csv` under the same grouping keys have been
+moved to `csv/archive_prefix/` and are no longer live. The current
+`csv/*.csv` files contain only fixed-code data — rajat30 (from
+`rajat30_fixed.log`) plus the full follow-up sweep (rajat04/05/11/12/13/14/19,
+add20, add32, rajat15/16/17). `csv/archive_prefix/*.csv` is kept for
+reference only and predates the double-cast fix — do not use it for current
+numbers.
 
 ---
 

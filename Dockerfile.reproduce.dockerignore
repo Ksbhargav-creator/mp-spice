@@ -1,0 +1,27 @@
+# Used automatically by BuildKit for `docker build -f mp-spice/Dockerfile.reproduce`
+# (a "<Dockerfile name>.dockerignore" next to the Dockerfile overrides .dockerignore).
+# Patterns are relative to the BUILD CONTEXT ROOT -- the directory that contains
+# mp-spice/ and mtl5/, not this repo.
+#
+# Allowlist: send ONLY mp-spice/ and mtl5/ to the daemon. The context root is
+# ~/Desktop/LFX, which may also hold a universal checkout and other large
+# directories that would otherwise be uploaded on every build for nothing.
+*
+!mp-spice
+!mtl5
+
+# .git is deliberately KEPT (not listed below) so the builder can record commit
+# SHAs and uncommitted changes in PROVENANCE.txt.
+**/build
+**/build-*
+**/.idea
+**/.vscode
+**/node_modules
+**/__pycache__
+**/.DS_Store
+
+# Large / regenerated, and fetched fresh in the image's own `matrices` stage:
+mp-spice/data
+# Not needed to use mtl5 as a header-only dependency:
+mtl5/docs-site
+mtl5/benchmarks
